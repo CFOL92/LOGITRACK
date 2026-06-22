@@ -6,6 +6,7 @@
 // - Conversión numérica
 // - Seguridad básica para HTML
 // - Toast global
+// - LocalStorage seguro
 // - Helpers generales
 
 export const formatoNum = new Intl.NumberFormat("es-PY", {
@@ -21,11 +22,32 @@ export const formatoDecimal = new Intl.NumberFormat("es-PY", {
   maximumFractionDigits: 2
 });
 
+export const formatoFechaCorta = new Intl.DateTimeFormat("es-PY", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
+
 /**
  * Registra utilidades globales para pruebas desde consola
  * y compatibilidad durante la migración modular.
  */
 export function registrarUtils() {
+  window.LOGITRACK_UTILS = {
+    cleanEstado,
+    toNumber,
+    escapeHtml,
+    escapeAttr,
+    fechaHoyISO,
+    normalizarTexto,
+    toastGlobal,
+    storageGet,
+    storageSet,
+    storageRemove,
+    googleMapsUrl,
+    tieneCoordenadas
+  };
+
   window.cleanEstado = cleanEstado;
   window.toNumber = toNumber;
   window.escapeHtml = escapeHtml;
@@ -43,6 +65,28 @@ export function fechaHoyISO() {
   const local = new Date(d.getTime() - offset * 60000);
 
   return local.toISOString().slice(0, 10);
+}
+
+/**
+ * Devuelve fecha y hora local en formato legible.
+ */
+export function fechaHoraLocal() {
+  const d = new Date();
+
+  const fecha = formatoFechaCorta.format(d);
+  const hora = d.toLocaleTimeString("es-PY", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+
+  return `${fecha} ${hora}`;
+}
+
+/**
+ * Devuelve timestamp ISO.
+ */
+export function nowISO() {
+  return new Date().toISOString();
 }
 
 /**
@@ -82,6 +126,16 @@ export function toNumber(value) {
 }
 
 /**
+ * Redondea un número a cierta cantidad de decimales.
+ */
+export function roundNumber(value, decimals = 2) {
+  const n = toNumber(value);
+  const factor = Math.pow(10, decimals);
+
+  return Math.round(n * factor) / factor;
+}
+
+/**
  * Normaliza estados para comparación y clases CSS.
  */
 export function cleanEstado(value) {
@@ -102,7 +156,27 @@ export function normalizarTexto(value) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Normaliza chapa.
+ */
+export function normalizarChapa(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+}
+
+/**
+ * Normaliza CI.
+ */
+export function normalizarCI(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\D/g, "");
 }
 
 /**
@@ -290,6 +364,13 @@ export function toastGlobal(msg, type) {
 }
 
 /**
+ * Alias de toast global.
+ */
+export function toast(msg, type) {
+  toastGlobal(msg, type);
+}
+
+/**
  * Limpia un texto para usarlo como clave simple.
  */
 export function makeKey(...parts) {
@@ -317,7 +398,15 @@ export function googleMapsUrl(lat, lon) {
  * Valida coordenadas básicas.
  */
 export function tieneCoordenadas(lat, lon) {
-  return Boolean(toNumber(lat) && toNumber(lon));
+  const latNum = toNumber(lat);
+  const lonNum = toNumber(lon);
+
+  if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return false;
+  if (latNum === 0 || lonNum === 0) return false;
+  if (latNum < -90 || latNum > 90) return false;
+  if (lonNum < -180 || lonNum > 180) return false;
+
+  return true;
 }
 
 /**
@@ -332,4 +421,107 @@ export function toQueryString(params = {}) {
   });
 
   return new URLSearchParams(clean).toString();
+}
+
+/**
+ * LocalStorage seguro: guardar valor JSON.
+ */
+export function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    console.warn("No se pudo guardar en localStorage:", error);
+    return false;
+  }
+}
+
+/**
+ * LocalStorage seguro: leer valor JSON.
+ */
+export function storageGet(key, fallback = null) {
+  try {
+    const raw = localStorage.getItem(key);
+
+    if (!raw) return fallback;
+
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn("No se pudo leer localStorage:", error);
+    return fallback;
+  }
+}
+
+/**
+ * LocalStorage seguro: eliminar valor.
+ */
+export function storageRemove(key) {
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch (error) {
+    console.warn("No se pudo eliminar localStorage:", error);
+    return false;
+  }
+}
+
+/**
+ * LocalStorage seguro: verificar existencia.
+ */
+export function storageHas(key) {
+  try {
+    return localStorage.getItem(key) !== null;
+  } catch (error) {
+    console.warn("No se pudo verificar localStorage:", error);
+    return false;
+  }
+}
+
+/**
+ * Limpia espacios internos dobles.
+ */
+export function compactText(value) {
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Corta texto largo sin romper la app.
+ */
+export function truncateText(value, max = 60) {
+  const txt = compactText(value);
+
+  if (txt.length <= max) return txt;
+
+  return txt.slice(0, max - 3) + "...";
+}
+
+/**
+ * Convierte valor a string seguro.
+ */
+export function asString(value) {
+  return String(value ?? "").trim();
+}
+
+/**
+ * Devuelve true si el dispositivo parece móvil.
+ */
+export function esMovil() {
+  return window.matchMedia("(max-width: 768px)").matches;
+}
+
+/**
+ * Copia texto al portapapeles si el navegador lo permite.
+ */
+export async function copiarTexto(texto) {
+  try {
+    if (!navigator.clipboard) return false;
+
+    await navigator.clipboard.writeText(String(texto ?? ""));
+    return true;
+  } catch (error) {
+    console.warn("No se pudo copiar texto:", error);
+    return false;
+  }
 }
