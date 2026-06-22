@@ -170,3 +170,72 @@
   font-size: 17px;
   margin-bottom: 2px;
 }
+
+/* --- INICIO COMPACTO --- */
+
+.inicio-compact-card {
+  margin-bottom: 10px;
+}
+
+.inicio-progress-meta {
+  margin-top: 7px;
+  font-size: 10.5px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.inicio-grid-compact {
+  margin-bottom: 10px;
+}
+
+.inicio-grid-compact .quick-card {
+  padding: 11px;
+}
+
+.inicio-sync-box {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  padding: 12px;
+  margin-top: 10px;
+  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.inicio-sync-title {
+  font-size: 12px;
+  font-weight: 950;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.inicio-sync-meta {
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.inicio-sync-btn {
+  width: auto;
+  min-width: 96px;
+  padding: 10px 12px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* --- AJUSTES MÓVILES PARA INICIO COMPACTO --- */
+
+@media (max-width: 420px) {
+  .inicio-sync-box {
+    grid-template-columns: 1fr;
+  }
+
+  .inicio-sync-btn {
+    width: 100%;
+  }
+}
