@@ -2,8 +2,8 @@
 // Vista Inicio:
 // - Resumen general de la ruta
 // - Progreso de jornada
-// - Acciones rápidas
-// - Header del chofer/ruta
+// - Datos de jornada
+// - Sincronización compacta
 
 import { state } from "../state.js";
 import { calcularEstadoRuta } from "../services/routeService.js";
@@ -46,7 +46,7 @@ export function renderInicio() {
     ${renderBloqueProgreso(estado)}
     ${renderResumenOperativo(estado, resumen)}
     ${renderDatosChofer()}
-    ${renderAccionesRapidas()}
+    ${renderSincronizacionCompacta()}
   `;
 }
 
@@ -88,7 +88,7 @@ export function actualizarAppHeader() {
  */
 function renderBloqueProgreso(estado) {
   return `
-    <div class="progress-card">
+    <div class="progress-card inicio-compact-card">
       <div class="progress-title">
         <span>Progreso de ruta</span>
         <span>${estado.gestionados}/${estado.totalPuntos} puntos</span>
@@ -98,7 +98,7 @@ function renderBloqueProgreso(estado) {
         <div class="progress-fill" style="width:${estado.avance}%"></div>
       </div>
 
-      <div style="margin-top:8px;font-size:11px;color:#64748b;font-weight:800;">
+      <div class="inicio-progress-meta">
         Avance: ${estado.avance}%
       </div>
     </div>
@@ -110,7 +110,7 @@ function renderBloqueProgreso(estado) {
  */
 function renderResumenOperativo(estado, resumen) {
   return `
-    <div class="quick-grid">
+    <div class="quick-grid inicio-grid-compact">
       <div class="quick-card">
         <b>${estado.pendientes}</b>
         <span>Puntos pendientes</span>
@@ -173,7 +173,7 @@ function renderDatosChofer() {
   const resumen = state.resumen || {};
 
   return `
-    <div class="card">
+    <div class="card inicio-compact-card">
       <div class="card-header">
         <div>
           <div class="card-title">Datos de jornada</div>
@@ -193,25 +193,21 @@ function renderDatosChofer() {
 }
 
 /**
- * Acciones rápidas de inicio.
+ * Sincronización compacta.
+ * No se muestran botones de navegación porque ya existen abajo.
  */
-function renderAccionesRapidas() {
+function renderSincronizacionCompacta() {
   return `
-    <div class="action-stack">
-      <button class="btn-primary" onclick="window.cambiarVista('ruta')">
-        📋 Ver mi ruta
-      </button>
+    <div class="inicio-sync-box">
+      <div>
+        <div class="inicio-sync-title">Sincronización</div>
+        <div class="inicio-sync-meta">
+          Actualiza la ruta si hubo cambios en facturas, productos o estados.
+        </div>
+      </div>
 
-      <button class="btn-success" onclick="window.cambiarVista('mapa')">
-        🗺️ Ver mapa
-      </button>
-
-      <button class="btn-secondary" onclick="window.refrescarRuta()">
-        🔄 Sincronizar datos
-      </button>
-
-      <button class="btn-danger" onclick="window.cambiarVista('cierre')">
-        🏁 Ir al cierre
+      <button class="btn-secondary inicio-sync-btn" onclick="window.refrescarRuta()">
+        🔄 Actualizar
       </button>
     </div>
   `;
