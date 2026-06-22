@@ -266,7 +266,7 @@
       width: 430px;
       max-width: 96vw;
       height: 100vh;
-      z-index: 2000;
+      z-index: 2500;
       background: #ffffff;
       box-shadow: -15px 0 35px rgba(15, 23, 42, 0.20);
       transition: right 0.22s ease;
@@ -489,6 +489,304 @@
     .zoom-low .label-boca { opacity: 0; visibility: hidden; }
     .zoom-high .label-boca { opacity: 1; visibility: visible; }
 
+    /* --- APP SHELL FASE 1 --- */
+    .app-shell {
+      position: absolute;
+      inset: 0;
+      z-index: 1200;
+      display: none;
+      flex-direction: column;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+
+    .app-shell.active {
+      display: flex;
+    }
+
+    .app-header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--line);
+      padding: 14px 14px 10px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+    }
+
+    .app-title-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .app-title {
+      font-size: 18px;
+      font-weight: 950;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+    }
+
+    .app-subtitle {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .route-pill {
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 9px;
+      font-weight: 950;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .app-view {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 14px 92px;
+    }
+
+    .app-view.active {
+      display: block;
+    }
+
+    .progress-card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: 0 5px 16px rgba(15, 23, 42, 0.06);
+      margin-bottom: 12px;
+    }
+
+    .progress-title {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 950;
+      color: #0f172a;
+      margin-bottom: 8px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 10px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0284c7, #22c55e);
+      border-radius: 999px;
+      width: 0%;
+    }
+
+    .quick-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .quick-card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+    }
+
+    .quick-card b {
+      display: block;
+      font-size: 18px;
+      color: #0f172a;
+      margin-bottom: 3px;
+    }
+
+    .quick-card span {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 900;
+    }
+
+    .action-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .route-filters {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+    }
+
+    .filter-chip {
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      color: #334155;
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 10px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .filter-chip.active {
+      background: #0284c7;
+      border-color: #0284c7;
+      color: #ffffff;
+    }
+
+    .stop-card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 13px;
+      margin-bottom: 10px;
+      box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
+    }
+
+    .stop-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .stop-order {
+      min-width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      background: #e0f2fe;
+      color: #0369a1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 950;
+      font-size: 13px;
+    }
+
+    .stop-main {
+      flex: 1;
+    }
+
+    .stop-name {
+      font-size: 13px;
+      font-weight: 950;
+      color: #0f172a;
+      line-height: 1.25;
+      text-transform: uppercase;
+    }
+
+    .stop-meta {
+      margin-top: 5px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .stop-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .stop-actions a {
+      text-align: center;
+      text-decoration: none;
+      border-radius: 10px;
+      padding: 11px 10px;
+      font-size: 11px;
+      font-weight: 950;
+    }
+
+    .link-gps {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .empty-state {
+      background: #ffffff;
+      border: 1px dashed #cbd5e1;
+      border-radius: 16px;
+      padding: 18px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 2600;
+      display: none;
+      background: #ffffff;
+      border-top: 1px solid var(--line);
+      box-shadow: 0 -8px 22px rgba(15, 23, 42, 0.12);
+      padding: 7px 6px calc(7px + env(safe-area-inset-bottom));
+    }
+
+    .bottom-nav.active {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .nav-item {
+      background: transparent;
+      color: #64748b;
+      border-radius: 12px;
+      padding: 8px 4px;
+      font-size: 10px;
+      font-weight: 950;
+    }
+
+    .nav-item.active {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .nav-icon {
+      display: block;
+      font-size: 17px;
+      margin-bottom: 2px;
+    }
+
+    .cierre-warning {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #9a3412;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+
+    .cierre-ok {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+      border-radius: 14px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.45;
+      margin-bottom: 12px;
+    }
+
     @media (max-width: 720px) {
       .top-panel {
         left: 8px;
@@ -544,6 +842,49 @@
     </div>
   </div>
 
+  <div id="appShell" class="app-shell">
+    <div class="app-header">
+      <div class="app-title-row">
+        <div>
+          <div class="app-title">LOGITRACK</div>
+          <div id="appDriverMeta" class="app-subtitle">Ruta no cargada</div>
+        </div>
+        <div id="appRouteStatus" class="route-pill">Ruta activa</div>
+      </div>
+    </div>
+
+    <div id="viewInicio" class="app-view">
+      <div id="inicioContent"></div>
+    </div>
+
+    <div id="viewRuta" class="app-view">
+      <div id="rutaContent"></div>
+    </div>
+
+    <div id="viewCierre" class="app-view">
+      <div id="cierreContent"></div>
+    </div>
+  </div>
+
+  <nav id="bottomNav" class="bottom-nav">
+    <button id="navInicio" class="nav-item active" onclick="window.cambiarVista('inicio')">
+      <span class="nav-icon">🏠</span>
+      Inicio
+    </button>
+    <button id="navRuta" class="nav-item" onclick="window.cambiarVista('ruta')">
+      <span class="nav-icon">📋</span>
+      Ruta
+    </button>
+    <button id="navMapa" class="nav-item" onclick="window.cambiarVista('mapa')">
+      <span class="nav-icon">🗺️</span>
+      Mapa
+    </button>
+    <button id="navCierre" class="nav-item" onclick="window.cambiarVista('cierre')">
+      <span class="nav-icon">🏁</span>
+      Cierre
+    </button>
+  </nav>
+
   <div id="topPanel" class="top-panel">
     <div class="driver-box">
       <div id="driverName" class="driver-name">Sin chofer</div>
@@ -598,7 +939,9 @@
       facturasCache: {},
       productosCache: {},
       paradaActiva: null,
-      facturaActiva: null
+      facturaActiva: null,
+      vistaActiva: "inicio",
+      filtroRuta: "TODOS"
     };
 
     const formatoNum = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 2 });
@@ -688,10 +1031,16 @@
         });
 
         document.getElementById("loginScreen").style.display = "none";
-        document.getElementById("topPanel").classList.add("active");
+        document.getElementById("bottomNav").classList.add("active");
 
         actualizarPanelChofer();
+        actualizarAppHeader();
         dibujarMapa();
+        renderInicio();
+        renderRuta();
+        renderCierre();
+
+        window.cambiarVista(state.vistaActiva || "inicio");
 
         toast("Ruta cargada correctamente.", "ok");
 
@@ -702,6 +1051,264 @@
         btn.textContent = "Cargar mi ruta";
       }
     };
+
+    window.cambiarVista = function(vista) {
+      state.vistaActiva = vista;
+
+      const appShell = document.getElementById("appShell");
+      const topPanel = document.getElementById("topPanel");
+
+      ["Inicio", "Ruta", "Mapa", "Cierre"].forEach(nombre => {
+        const nav = document.getElementById("nav" + nombre);
+        if (nav) nav.classList.remove("active");
+      });
+
+      document.querySelectorAll(".app-view").forEach(v => v.classList.remove("active"));
+
+      if (vista === "mapa") {
+        appShell.classList.remove("active");
+        topPanel.classList.add("active");
+        document.getElementById("navMapa").classList.add("active");
+
+        setTimeout(() => {
+          map.invalidateSize();
+          dibujarMapa();
+        }, 150);
+
+        return;
+      }
+
+      topPanel.classList.remove("active");
+      appShell.classList.add("active");
+
+      if (vista === "inicio") {
+        document.getElementById("viewInicio").classList.add("active");
+        document.getElementById("navInicio").classList.add("active");
+        renderInicio();
+      }
+
+      if (vista === "ruta") {
+        document.getElementById("viewRuta").classList.add("active");
+        document.getElementById("navRuta").classList.add("active");
+        renderRuta();
+      }
+
+      if (vista === "cierre") {
+        document.getElementById("viewCierre").classList.add("active");
+        document.getElementById("navCierre").classList.add("active");
+        renderCierre();
+      }
+    };
+
+    function actualizarAppHeader() {
+      const chofer = state.chofer || {};
+      const movil = state.movil || {};
+
+      document.getElementById("appDriverMeta").innerHTML =
+        `${escapeHtml(chofer.chofer || "Chofer")}<br>` +
+        `Chapa: ${escapeHtml(movil.chapa || "")} | Fecha: ${escapeHtml(state.fecha || "")}`;
+
+      document.getElementById("appRouteStatus").textContent = "Ruta activa";
+    }
+
+    function calcularEstadoRuta() {
+      const totalPuntos = state.paradas.length;
+
+      const pendientes = state.paradas.filter(p => {
+        const estado = cleanEstado(p.EstadoParada || "PENDIENTE");
+        const tienePendiente = cleanEstado(p.TienePendientes || "");
+        return estado === "PENDIENTE" || tienePendiente === "SI";
+      }).length;
+
+      const entregados = state.paradas.filter(p => {
+        const estado = cleanEstado(p.EstadoParada || "");
+        return estado === "ENTREGADO";
+      }).length;
+
+      const parciales = state.paradas.filter(p => {
+        const estado = cleanEstado(p.EstadoParada || "");
+        return estado === "PARCIAL";
+      }).length;
+
+      const rechazados = state.paradas.filter(p => {
+        const estado = cleanEstado(p.EstadoParada || "");
+        return estado === "RECHAZADO" || estado === "NO_DESPACHADO";
+      }).length;
+
+      const gestionados = Math.max(totalPuntos - pendientes, 0);
+      const avance = totalPuntos > 0 ? Math.round((gestionados / totalPuntos) * 100) : 0;
+
+      return {
+        totalPuntos,
+        pendientes,
+        entregados,
+        parciales,
+        rechazados,
+        gestionados,
+        avance
+      };
+    }
+
+    function renderInicio() {
+      const resumen = state.resumen || {};
+      const estado = calcularEstadoRuta();
+
+      const html = `
+        <div class="progress-card">
+          <div class="progress-title">
+            <span>Progreso de ruta</span>
+            <span>${estado.gestionados}/${estado.totalPuntos} puntos</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width:${estado.avance}%"></div>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:#64748b;font-weight:800;">
+            Avance: ${estado.avance}%
+          </div>
+        </div>
+
+        <div class="quick-grid">
+          <div class="quick-card"><b>${estado.pendientes}</b><span>Puntos pendientes</span></div>
+          <div class="quick-card"><b>${estado.entregados}</b><span>Entregados</span></div>
+          <div class="quick-card"><b>${resumen.facturas || 0}</b><span>Facturas</span></div>
+          <div class="quick-card"><b>${resumen.productos || 0}</b><span>Productos</span></div>
+          <div class="quick-card"><b>${formatoNum.format(resumen.totalPesoKg || 0)}</b><span>Peso kg</span></div>
+          <div class="quick-card"><b>${formatoNum.format(resumen.totalPallets || 0)}</b><span>Pallets</span></div>
+          <div class="quick-card"><b>${formatoNum.format(resumen.totalVolumenM3 || 0)}</b><span>Volumen m3</span></div>
+          <div class="quick-card"><b>${formatoGs.format(resumen.totalImporte || 0)}</b><span>Importe Gs.</span></div>
+        </div>
+
+        <div class="action-stack">
+          <button class="btn-primary" onclick="window.cambiarVista('ruta')">📋 Ver mi ruta</button>
+          <button class="btn-success" onclick="window.cambiarVista('mapa')">🗺️ Ver mapa</button>
+          <button class="btn-secondary" onclick="window.refrescarRuta()">🔄 Sincronizar datos</button>
+        </div>
+      `;
+
+      document.getElementById("inicioContent").innerHTML = html;
+    }
+
+    function renderRuta() {
+      const filtro = state.filtroRuta || "TODOS";
+
+      let lista = [...state.paradas].sort((a, b) => {
+        return toNumber(a.OrdenPlanificado) - toNumber(b.OrdenPlanificado);
+      });
+
+      if (filtro !== "TODOS") {
+        lista = lista.filter(p => {
+          const estado = cleanEstado(p.EstadoParada || "PENDIENTE");
+
+          if (filtro === "PENDIENTE") return estado === "PENDIENTE";
+          if (filtro === "ENTREGADO") return estado === "ENTREGADO";
+          if (filtro === "PARCIAL") return estado === "PARCIAL";
+          if (filtro === "RECHAZADO") return estado === "RECHAZADO" || estado === "NO_DESPACHADO";
+
+          return true;
+        });
+      }
+
+      const filtros = ["TODOS", "PENDIENTE", "ENTREGADO", "PARCIAL", "RECHAZADO"];
+
+      const html = `
+        <div class="route-filters">
+          ${filtros.map(f => `
+            <button class="filter-chip ${filtro === f ? "active" : ""}" onclick="window.filtrarRuta('${f}')">
+              ${f}
+            </button>
+          `).join("")}
+        </div>
+
+        ${lista.length ? lista.map(p => renderParadaCard(p)).join("") : `
+          <div class="empty-state">
+            No hay paradas para el filtro seleccionado.
+          </div>
+        `}
+      `;
+
+      document.getElementById("rutaContent").innerHTML = html;
+    }
+
+    function renderParadaCard(p) {
+      const estado = cleanEstado(p.EstadoParada || "PENDIENTE");
+      const lat = p.Latitud || "";
+      const lon = p.Longitud || "";
+
+      return `
+        <div class="stop-card">
+          <div class="stop-top">
+            <div class="stop-order">${escapeHtml(p.OrdenPlanificado || "-")}</div>
+            <div class="stop-main">
+              <div class="stop-name">${escapeHtml(p.Cliente || p.Boca || "Cliente")}</div>
+              <div class="stop-meta">
+                CodBoca: ${escapeHtml(p.CodBoca || "")}<br>
+                ${escapeHtml(p.Ciudad || "")} | ${escapeHtml(p.Zona || "")}<br>
+                Facturas: ${p.CantidadFacturas || 0} | Productos: ${p.CantidadProductos || 0}<br>
+                Peso: ${formatoNum.format(toNumber(p.TotalPesoKg))} kg |
+                Pallets: ${formatoNum.format(toNumber(p.TotalPallets))}
+              </div>
+            </div>
+            <span class="badge ${estado}">${estado}</span>
+          </div>
+
+          <div class="stop-actions">
+            <button class="btn-primary" onclick="window.abrirParadaDesdeLista('${escapeAttr(p.ParadaID || "")}', '${escapeAttr(p.CodBoca || "")}', '${escapeAttr(p.RutaID || "")}')">
+              Gestionar
+            </button>
+            <a class="link-gps" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}">
+              Ir con GPS
+            </a>
+          </div>
+        </div>
+      `;
+    }
+
+    window.filtrarRuta = function(filtro) {
+      state.filtroRuta = filtro;
+      renderRuta();
+    };
+
+    window.abrirParadaDesdeLista = function(paradaId, codBoca, rutaId) {
+      window.abrirParada(paradaId, codBoca, rutaId);
+    };
+
+    function renderCierre() {
+      const estado = calcularEstadoRuta();
+
+      const bloqueEstado = estado.pendientes > 0
+        ? `
+          <div class="cierre-warning">
+            No puedes cerrar la ruta todavía.<br><br>
+            Pendientes: <b>${estado.pendientes}</b> puntos.<br>
+            Gestionados: <b>${estado.gestionados}</b> de <b>${estado.totalPuntos}</b>.
+          </div>
+        `
+        : `
+          <div class="cierre-ok">
+            Ruta lista para cierre.<br><br>
+            Todos los puntos están gestionados.
+          </div>
+        `;
+
+      const html = `
+        ${bloqueEstado}
+
+        <div class="quick-grid">
+          <div class="quick-card"><b>${estado.totalPuntos}</b><span>Total puntos</span></div>
+          <div class="quick-card"><b>${estado.gestionados}</b><span>Gestionados</span></div>
+          <div class="quick-card"><b>${estado.pendientes}</b><span>Pendientes</span></div>
+          <div class="quick-card"><b>${estado.avance}%</b><span>Avance</span></div>
+        </div>
+
+        <div class="action-stack">
+          <button class="btn-danger" onclick="window.finalizarRuta()">🏁 Finalizar ruta</button>
+          <button class="btn-secondary" onclick="window.cambiarVista('ruta')">Ver pendientes</button>
+          <button class="btn-secondary" onclick="window.refrescarRuta()">🔄 Sincronizar</button>
+        </div>
+      `;
+
+      document.getElementById("cierreContent").innerHTML = html;
+    }
 
     window.refrescarRuta = async function() {
       if (!state.ci || !state.chapa || !state.fecha) return;
@@ -931,8 +1538,12 @@
       const factura = buscarFactura(facturaId);
       const titulo = factura ? `Factura ${factura.NumFactura}` : "Productos";
 
+      const paradaId = state.paradaActiva ? state.paradaActiva.ParadaID || "" : "";
+      const codBoca = state.paradaActiva ? state.paradaActiva.CodBoca || "" : "";
+      const rutaId = state.paradaActiva ? state.paradaActiva.RutaID || "" : "";
+
       const html = `
-        <button class="btn-secondary" style="margin-bottom:10px;" onclick="window.abrirParada('${escapeAttr(state.paradaActiva.ParadaID || "")}', '${escapeAttr(state.paradaActiva.CodBoca || "")}', '${escapeAttr(state.paradaActiva.RutaID || "")}')">
+        <button class="btn-secondary" style="margin-bottom:10px;" onclick="window.abrirParada('${escapeAttr(paradaId)}', '${escapeAttr(codBoca)}', '${escapeAttr(rutaId)}')">
           ← Volver a facturas
         </button>
 
@@ -1102,15 +1713,24 @@
     };
 
     async function refrescarDespuesDeGestion() {
+      const vistaAnterior = state.vistaActiva || "ruta";
+      const facturaAnterior = state.facturaActiva;
+      const paradaAnterior = state.paradaActiva;
+
       await cargarRutaChofer(false);
 
-      if (state.facturaActiva) {
-        await verProductos(state.facturaActiva);
-      } else if (state.paradaActiva) {
+      renderInicio();
+      renderRuta();
+      renderCierre();
+      window.cambiarVista(vistaAnterior);
+
+      if (facturaAnterior) {
+        await verProductos(facturaAnterior);
+      } else if (paradaAnterior) {
         await abrirParada(
-          state.paradaActiva.ParadaID || "",
-          state.paradaActiva.CodBoca || "",
-          state.paradaActiva.RutaID || ""
+          paradaAnterior.ParadaID || "",
+          paradaAnterior.CodBoca || "",
+          paradaAnterior.RutaID || ""
         );
       }
     }
@@ -1148,6 +1768,7 @@
           }
 
           toast(msg, "error");
+          renderCierre();
           return;
         }
 
@@ -1219,6 +1840,7 @@
 
       state.ci = "";
       state.chapa = "";
+      state.fecha = "";
       state.chofer = null;
       state.movil = null;
       state.resumen = null;
@@ -1228,12 +1850,17 @@
       state.productosCache = {};
       state.paradaActiva = null;
       state.facturaActiva = null;
+      state.vistaActiva = "inicio";
+      state.filtroRuta = "TODOS";
 
       layerGroup.clearLayers();
       cerrarPanel();
 
       document.getElementById("topPanel").classList.remove("active");
+      document.getElementById("appShell").classList.remove("active");
+      document.getElementById("bottomNav").classList.remove("active");
       document.getElementById("loginScreen").style.display = "flex";
+
       setLoginMsg("Ingrese CI, chapa y fecha para consultar la ruta asignada.", false);
     };
 
