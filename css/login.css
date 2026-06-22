@@ -97,3 +97,103 @@ input:focus {
   border-color: #fecaca;
   color: #991b1b;
 }
+
+/* --- SESIÓN ACTIVA --- */
+
+.remember-session-row {
+  margin: 2px 0 16px;
+}
+
+.remember-session-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 11px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+  line-height: 1.35;
+  user-select: none;
+}
+
+.remember-session-label:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.remember-session-label input {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  padding: 0;
+  margin: 0;
+  border-radius: 4px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.remember-session-label input:focus {
+  box-shadow: none;
+}
+
+.remember-session-label span {
+  display: block;
+  flex: 1;
+}
+
+/* --- AJUSTE MÓVIL LOGIN --- */
+
+@media (max-width: 420px) {
+  .login-screen {
+    padding: 16px;
+  }
+
+  .login-card {
+    padding: 20px;
+    border-radius: 18px;
+  }
+
+  .brand {
+    margin-bottom: 16px;
+  }
+
+  .brand-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 21px;
+  }
+
+  .brand h1 {
+    font-size: 21px;
+  }
+
+  .brand small {
+    font-size: 11px;
+  }
+
+  .form-group {
+    margin-bottom: 12px;
+  }
+
+  input {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .remember-session-label {
+    font-size: 11.5px;
+    padding: 10px;
+  }
+
+  .login-msg {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+}
