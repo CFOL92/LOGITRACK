@@ -2,12 +2,17 @@
 // Acciones generales de ruta:
 // - Refrescar ruta
 // - Finalizar ruta
+// - Cerrar sesión
 // - Salir / cambiar chofer
 // - Limpiar estado de jornada
+// - Limpiar sesión local guardada
 
 import { state } from "../state.js";
 import { apiGet } from "../api.js";
 import { obtenerGPS } from "../services/gpsService.js";
+import { fechaHoyISO } from "../utils.js";
+
+const SESSION_KEY = "LOGITRACK_SESSION_V1";
 
 /**
  * Registra funciones en window para mantener compatibilidad
@@ -17,6 +22,8 @@ export function registrarRutaActions() {
   window.refrescarRuta = refrescarRuta;
   window.finalizarRuta = finalizarRuta;
   window.salir = salir;
+  window.cerrarSesion = cerrarSesion;
+  window.limpiarEstadoRuta = limpiarEstadoRuta;
 }
 
 /**
@@ -88,21 +95,49 @@ export async function finalizarRuta() {
 }
 
 /**
- * Cambia de chofer / vuelve al login.
+ * Cierra sesión real:
+ * - Borra sesión guardada
+ * - Limpia estado
+ * - Limpia mapa/paneles
+ * - Vuelve al login
+ */
+export function cerrarSesion() {
+  const confirmar = confirm("¿Desea cerrar la sesión de LOGITRACK en este dispositivo?");
+
+  if (!confirmar) return;
+
+  limpiarSesionLocal();
+  limpiarEstadoRuta();
+  volverLogin();
+
+  toastRuta("Sesión cerrada correctamente.", "ok");
+}
+
+/**
+ * Cambiar chofer:
+ * también borra sesión guardada para evitar autocarga
+ * con el chofer anterior.
  */
 export function salir() {
   const confirmar = confirm("¿Cambiar de chofer?");
+
   if (!confirmar) return;
 
+  limpiarSesionLocal();
   limpiarEstadoRuta();
+  volverLogin();
 
-  if (typeof window.cerrarPanel === "function") {
-    window.cerrarPanel();
-  }
+  toastRuta("Puede ingresar otro chofer.", "ok");
+}
 
-  if (typeof window.limpiarMapa === "function") {
-    window.limpiarMapa();
-  }
+/**
+ * Vuelve visualmente al login.
+ */
+function volverLogin() {
+  cerrarPanelesVisuales();
+  limpiarMapaVisual();
+  limpiarVistasVisuales();
+  limpiarInputsLoginVisual();
 
   const topPanel = document.getElementById("topPanel");
   const appShell = document.getElementById("appShell");
@@ -118,23 +153,144 @@ export function salir() {
 }
 
 /**
+ * Cierra panel lateral si existe.
+ */
+function cerrarPanelesVisuales() {
+  if (typeof window.cerrarPanel === "function") {
+    window.cerrarPanel();
+  }
+
+  const sidePanel = document.getElementById("sidePanel");
+
+  if (sidePanel) {
+    sidePanel.classList.remove("active");
+  }
+}
+
+/**
+ * Limpia mapa si el servicio está disponible.
+ */
+function limpiarMapaVisual() {
+  if (typeof window.limpiarMapa === "function") {
+    window.limpiarMapa();
+  }
+
+  if (typeof window.limpiarGPS === "function") {
+    window.limpiarGPS();
+  }
+}
+
+/**
+ * Limpia contenedores visuales para evitar datos anteriores.
+ */
+function limpiarVistasVisuales() {
+  const inicioContent = document.getElementById("inicioContent");
+  const rutaContent = document.getElementById("rutaContent");
+  const cierreContent = document.getElementById("cierreContent");
+  const sideBody = document.getElementById("sideBody");
+  const sideTitle = document.getElementById("sideTitle");
+  const sideSubtitle = document.getElementById("sideSubtitle");
+  const appDriverMeta = document.getElementById("appDriverMeta");
+  const appRouteStatus = document.getElementById("appRouteStatus");
+  const apiStatus = document.getElementById("apiStatus");
+
+  if (inicioContent) inicioContent.innerHTML = "";
+  if (rutaContent) rutaContent.innerHTML = "";
+  if (cierreContent) cierreContent.innerHTML = "";
+  if (sideBody) sideBody.innerHTML = "";
+  if (sideTitle) sideTitle.textContent = "Detalle";
+  if (sideSubtitle) sideSubtitle.textContent = "";
+  if (appDriverMeta) appDriverMeta.textContent = "Ruta no cargada";
+  if (appRouteStatus) appRouteStatus.textContent = "Ruta activa";
+  if (apiStatus) apiStatus.textContent = "API: CONECTANDO...";
+
+  limpiarNavVisual();
+}
+
+/**
+ * Limpia navegación inferior.
+ */
+function limpiarNavVisual() {
+  const navs = ["navInicio", "navRuta", "navMapa", "navCierre"];
+
+  navs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove("active");
+  });
+
+  const navInicio = document.getElementById("navInicio");
+
+  if (navInicio) {
+    navInicio.classList.add("active");
+  }
+
+  document.querySelectorAll(".app-view").forEach(view => {
+    view.classList.remove("active");
+  });
+}
+
+/**
+ * Limpia inputs del login al cerrar sesión o cambiar chofer.
+ */
+function limpiarInputsLoginVisual() {
+  const ciInput = document.getElementById("ciInput");
+  const chapaInput = document.getElementById("chapaInput");
+  const fechaInput = document.getElementById("fechaInput");
+  const rememberInput = document.getElementById("rememberSessionInput");
+
+  if (ciInput) ciInput.value = "";
+  if (chapaInput) chapaInput.value = "";
+  if (fechaInput) fechaInput.value = fechaHoyISO();
+
+  if (rememberInput) {
+    rememberInput.checked = true;
+  }
+}
+
+/**
+ * Borra sesión local guardada.
+ */
+function limpiarSesionLocal() {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch (error) {
+    console.warn("No se pudo limpiar la sesión local:", error);
+  }
+}
+
+/**
  * Limpia el estado global de la ruta.
  */
 export function limpiarEstadoRuta() {
   state.ci = "";
   state.chapa = "";
   state.fecha = "";
+
   state.chofer = null;
   state.movil = null;
   state.resumen = null;
+
   state.paradas = [];
   state.paradasMap = {};
+
   state.facturasCache = {};
   state.productosCache = {};
+
   state.paradaActiva = null;
   state.facturaActiva = null;
+
   state.vistaActiva = "inicio";
   state.filtroRuta = "TODOS";
+  state.busquedaRuta = "";
+  state.ordenRuta = "PLANIFICADO";
+
+  state.gpsActivo = false;
+  state.ultimaUbicacion = null;
+  state.trackingActivo = false;
+
+  state.cargandoRuta = false;
+  state.ultimaSincronizacion = null;
+  state.errorActual = null;
 }
 
 /**
@@ -175,7 +331,7 @@ function construirMensajePendientes(data) {
 /**
  * Actualiza el mensaje del login.
  */
-function setLoginMsgRuta(text, isError) {
+function setLoginMsgRuta(text, isError = false) {
   const el = document.getElementById("loginMsg");
 
   if (!el) return;
@@ -186,7 +342,6 @@ function setLoginMsgRuta(text, isError) {
 
 /**
  * Toast local del módulo.
- * Más adelante se puede mover a utils.js para reutilizarlo.
  */
 function toastRuta(msg, type) {
   const el = document.getElementById("toast");
