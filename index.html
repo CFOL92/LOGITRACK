@@ -1,538 +1,1318 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <title>Master Control Flota | LogiTrack Pro</title>
-    
-    <!-- Leaflet Mapa -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <style>
-        :root {
-            --primary: #0284c7;
-            --success: #22c55e;
-            --success-dark: #16a34a;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --neutral: #64748b;
-            --bg-glass: rgba(255, 255, 255, 0.98);
-            --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
 
-        body { margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; overflow: hidden; background: #f1f5f9; }
-        #map { height: 100vh; width: 100%; background: #cbd5e1; }
+  <title>LOGITRACK | Control de Ruta</title>
 
-        /* --- CONTROLES SUPERIORES --- */
-        .controls {
-            position: absolute; top: 10px; right: 10px; z-index: 1000;
-            background: var(--bg-glass); padding: 12px; border-radius: 12px;
-            box-shadow: var(--shadow); width: 240px; 
-            display: flex; flex-direction: column; gap: 10px; border: 1px solid #e2e8f0;
-        }
-        
-        .label-filter { font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; display: block; }
-        
-        select { 
-            padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; 
-            width: 100%; font-size: 12px; background-color: #fff; color: #1e293b;
-            cursor: pointer;
-        }
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-        .btn-gps { background: var(--success); color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
-        .btn-gps:hover { background: var(--success-dark); }
-        .btn-config { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 11px; }
+  <style>
+    :root {
+      --primary: #0284c7;
+      --primary-dark: #0369a1;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --neutral: #64748b;
+      --dark: #0f172a;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --bg: #f1f5f9;
+      --panel: rgba(255, 255, 255, 0.98);
+      --shadow: 0 14px 35px rgba(15, 23, 42, 0.16);
+    }
 
-        #contador { font-size: 10px; text-align: center; color: #64748b; margin-top: 4px; font-weight: 600; }
-        #db-status { font-size: 8px; text-align: center; color: #94a3b8; text-transform: uppercase; margin-top: 2px; font-weight: 800; cursor: pointer; user-select: none; transition: color 0.3s; }
+    * { box-sizing: border-box; }
 
-        /* --- SEMÁFOROS Y ETIQUETAS --- */
-        .label-boca {
-            background: transparent; border: none; box-shadow: none;
-            color: #1a1a1a; font-size: 10px; font-weight: 700 !important; 
-            white-space: nowrap; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff;
-            display: flex; flex-direction: column; align-items: flex-start;
-        }
-        .zoom-low .label-boca { opacity: 0; visibility: hidden; }
-        .zoom-high .label-boca { opacity: 1; visibility: visible; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Inter, Arial, sans-serif;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--dark);
+    }
 
-        .semaphore-container { display: flex; gap: 2px; margin-top: 2px; }
-        .semaphore-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid white; }
-        .dot-entregado { background-color: var(--success); }
-        .dot-parcial { background-color: var(--warning); }
-        .dot-rechazado { background-color: var(--danger); }
-        .dot-nodespachado { background-color: var(--neutral); }
-        .dot-pendiente { background-color: var(--primary); }
+    #map {
+      height: 100vh;
+      width: 100%;
+      background: #cbd5e1;
+    }
 
-        /* --- POPUP PROFESIONAL --- */
-        .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.3); border: 1px solid #ddd; }
-        .leaflet-popup-content { margin: 0 !important; width: 330px !important; }
-        
-        .popup-container { background: white; display: flex; flex-direction: column; }
-        .popup-header { padding: 15px; border-bottom: 1px solid #f0f0f0; background: #fff; }
-        .popup-header h3 { margin: 0; color: #111; font-size: 14px; font-weight: 900; text-transform: uppercase; line-height: 1.2; }
-        .popup-header .subtitle { color: #64748b; font-size: 10px; font-weight: 600; display: block; margin-top: 4px; }
+    .login-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0369a1 100%);
+      padding: 20px;
+    }
 
-        .popup-section-title { font-size: 9px; font-weight: 800; color: #94a3b8; padding: 10px 15px 4px 15px; text-transform: uppercase; background: #f8fafc; }
+    .login-card {
+      width: 100%;
+      max-width: 430px;
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
 
-        .facturas-list-container { padding: 5px 0; background: #f8fafc; max-height: 220px; overflow-y: auto; border-bottom: 1px solid #f1f5f9; }
-        .factura-row { padding: 12px 15px; border-bottom: 1px solid #edf2f7; display: flex; flex-direction: column; gap: 8px; }
-        .factura-header-info { display: flex; justify-content: space-between; align-items: center; }
-        .factura-status-badge { font-size: 8px; font-weight: 800; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; color: white; }
-        
-        /* BOTONES HORIZONTALES */
-        .status-btn-group { 
-            display: flex !important;
-            flex-direction: row !important;
-            justify-content: space-between !important;
-            gap: 4px !important; 
-            margin-top: 8px !important; 
-            width: 100% !important;
-        }
-        .btn-factura-status { 
-            flex: 1; border: 1px solid #e2e8f0; padding: 8px 1px; border-radius: 4px; font-size: 6.5px; 
-            font-weight: 900; text-transform: uppercase; cursor: pointer !important; transition: 0.2s; 
-            background: white; color: #64748b; text-align: center; white-space: nowrap; pointer-events: auto !important;
-        }
-        .btn-factura-status:active { transform: scale(0.92); }
-        .btn-factura-status.active-entregado { background: var(--success); color: white; border-color: var(--success-dark); }
-        .btn-factura-status.active-parcial { background: var(--warning); color: white; border-color: #d97706; }
-        .btn-factura-status.active-rechazado { background: var(--danger); color: white; border-color: #dc2626; }
-        .btn-factura-status.active-nodespachado { background: var(--neutral); color: white; border-color: #475569; }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
 
-        /* BOTÓN EVENTO CRÍTICO */
-        .btn-evento {
-            width: calc(100% - 30px); margin: 10px 15px; padding: 10px; border-radius: 8px; border: 2px solid var(--danger);
-            background: #fff; color: var(--danger); font-weight: 900; font-size: 10px; text-transform: uppercase;
-            cursor: pointer; transition: 0.2s;
-        }
-        .btn-evento.active-evento { background: var(--danger); color: #fff; }
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #e0f2fe;
+      color: var(--primary);
+      font-size: 22px;
+      font-weight: 900;
+    }
 
-        .popup-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .popup-table tr td { padding: 10px 15px; border-bottom: 1px solid #f1f5f9; }
-        .popup-table tr td:first-child { color: #64748b; font-weight: 500; }
-        .popup-table tr td:last-child { text-align: right; color: #1e293b; font-weight: 700; }
-        
-        .val-total { color: #0284c7 !important; font-size: 14px; font-weight: 900 !important; }
-        .val-peso { color: #f59e0b !important; }
+    .brand h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0.4px;
+    }
 
-        .btn-unconfirm-all { 
-            width: 100%; border: none; padding: 12px; font-size: 10px; font-weight: 800; 
-            color: #ef4444; background: #fff; cursor: pointer; text-decoration: none; border-top: 1px solid #f1f5f9;
-        }
+    .brand small {
+      color: var(--muted);
+      font-size: 12px;
+      display: block;
+      margin-top: 2px;
+    }
 
-        .nav-btn-footer { 
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-            background: var(--success); color: white; text-align: center; padding: 16px; 
-            text-decoration: none; font-weight: 800; font-size: 13px;
-        }
+    .form-group { margin-bottom: 14px; }
 
-        /* --- MENÚ SELECCIÓN MÚLTIPLE --- */
-        .multi-selection-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; max-height: 350px; overflow-y: auto; }
-        .btn-select-client { 
-            background: white; border: 1px solid #e2e8f0; padding: 15px; border-radius: 12px; 
-            text-align: left; cursor: pointer; transition: 0.2s; display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .btn-select-client:active { transform: scale(0.98); background: #f0f9ff; }
-        .btn-select-client .client-name { font-weight: 900; font-size: 12px; color: #1e293b; text-transform: uppercase; }
+    label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 900;
+      color: #475569;
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
 
-        .badge-multi {
-            position: absolute; top: -8px; right: -12px; background: var(--danger); color: white; 
-            font-size: 10px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
-            border-radius: 50%; font-weight: 900; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
+    input {
+      width: 100%;
+      padding: 13px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+    }
 
-        #panel-config { display: none; position: absolute; top: 10px; left: 10px; z-index: 1001; background: white; width: 280px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
-        .custom-div-icon { display: flex; align-items: center; justify-content: center; background: transparent !important; border: none !important; }
-    </style>
+    input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.14);
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      font-weight: 900;
+      font-size: 12px;
+      transition: 0.15s;
+    }
+
+    button:active { transform: scale(0.98); }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      width: 100%;
+      background: var(--primary);
+      color: #ffffff;
+      padding: 14px;
+      font-size: 14px;
+    }
+
+    .btn-primary:hover { background: var(--primary-dark); }
+
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #334155;
+      border: 1px solid #cbd5e1;
+    }
+
+    .btn-success { background: var(--success); color: #ffffff; }
+    .btn-warning { background: var(--warning); color: #ffffff; }
+    .btn-danger { background: var(--danger); color: #ffffff; }
+    .btn-neutral { background: var(--neutral); color: #ffffff; }
+
+    .login-msg {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      font-size: 13px;
+      color: #475569;
+      white-space: pre-wrap;
+    }
+
+    .login-msg.error {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+
+    .top-panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      width: 270px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      display: none;
+    }
+
+    .top-panel.active { display: block; }
+
+    .driver-box {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+    }
+
+    .driver-name {
+      font-size: 13px;
+      font-weight: 900;
+      color: #0f172a;
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+
+    .driver-meta {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .stat {
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px;
+    }
+
+    .stat b {
+      display: block;
+      font-size: 14px;
+      color: #0f172a;
+    }
+
+    .stat span {
+      font-size: 9px;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .panel-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .panel-actions button { width: 100%; }
+
+    .status-line {
+      margin-top: 10px;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 900;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .side-panel {
+      position: absolute;
+      top: 0;
+      right: -430px;
+      width: 430px;
+      max-width: 96vw;
+      height: 100vh;
+      z-index: 2000;
+      background: #ffffff;
+      box-shadow: -15px 0 35px rgba(15, 23, 42, 0.20);
+      transition: right 0.22s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .side-panel.active { right: 0; }
+
+    .side-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .side-title {
+      margin: 0;
+      font-size: 15px;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+
+    .side-subtitle {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .side-close {
+      background: #f1f5f9;
+      color: #334155;
+      min-width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 1px solid var(--line);
+    }
+
+    .side-body {
+      padding: 14px;
+      overflow-y: auto;
+      flex: 1;
+      background: #f8fafc;
+    }
+
+    .section-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 900;
+      margin: 10px 0 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 900;
+      color: #0f172a;
+      line-height: 1.25;
+    }
+
+    .card-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 74px;
+      padding: 4px 7px;
+      border-radius: 999px;
+      color: #ffffff;
+      font-size: 8px;
+      font-weight: 900;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .badge.PENDIENTE { background: var(--primary); }
+    .badge.ENTREGADO,
+    .badge.ENTREGADO_TOTAL { background: var(--success); }
+    .badge.PARCIAL,
+    .badge.ENTREGADO_PARCIAL { background: var(--warning); }
+    .badge.RECHAZADO,
+    .badge.RECHAZADO_TOTAL { background: var(--danger); }
+    .badge.NO_DESPACHADO { background: var(--neutral); }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .btn-row-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    .btn-row-4 button {
+      font-size: 9px;
+      padding: 9px 4px;
+      border-radius: 8px;
+    }
+
+    .product-line {
+      font-size: 11px;
+      color: #334155;
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      transform: translateX(-50%);
+      z-index: 4000;
+      background: #0f172a;
+      color: #ffffff;
+      padding: 12px 16px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      display: none;
+      max-width: 92vw;
+      white-space: pre-wrap;
+    }
+
+    .toast.active { display: block; }
+
+    .toast.error { background: #991b1b; }
+    .toast.ok { background: #166534; }
+
+    .leaflet-popup-content-wrapper {
+      border-radius: 14px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+    }
+
+    .leaflet-popup-content {
+      margin: 0 !important;
+      width: 300px !important;
+    }
+
+    .popup-card {
+      padding: 14px;
+      background: #ffffff;
+    }
+
+    .popup-title {
+      font-size: 14px;
+      font-weight: 900;
+      text-transform: uppercase;
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+
+    .popup-meta {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.5;
+      margin-bottom: 10px;
+    }
+
+    .popup-btn {
+      width: 100%;
+      background: var(--primary);
+      color: #ffffff;
+      margin-top: 8px;
+    }
+
+    .custom-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent !important;
+      border: none !important;
+    }
+
+    .label-boca {
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      color: #111827;
+      font-size: 10px;
+      font-weight: 900 !important;
+      white-space: nowrap;
+      text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, 1px 1px 0 #fff, -1px 1px 0 #fff;
+    }
+
+    .zoom-low .label-boca { opacity: 0; visibility: hidden; }
+    .zoom-high .label-boca { opacity: 1; visibility: visible; }
+
+    @media (max-width: 720px) {
+      .top-panel {
+        left: 8px;
+        right: 8px;
+        top: 8px;
+        width: auto;
+      }
+
+      .side-panel {
+        width: 100vw;
+        max-width: 100vw;
+      }
+
+      .login-card {
+        padding: 20px;
+      }
+    }
+  </style>
 </head>
+
 <body class="zoom-low">
 
-    <div class="controls">
-        <button class="btn-gps" onclick="window.activarGPS()">📍 MI UBICACIÓN</button>
+  <div id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="brand">
+        <div class="brand-icon">🚚</div>
         <div>
-            <span class="label-filter">TRANSPORTADORA</span>
-            <select id="filtroTransp" onchange="window.cambioTransportadora()">
-                <option value="todos">CARGANDO...</option>
-            </select>
+          <h1>LOGITRACK</h1>
+          <small>Control de ruta por chofer</small>
         </div>
-        <div>
-            <span class="label-filter">CHOFER</span>
-            <select id="filtroChofer" onchange="window.actualizarMapa()">
-                <option value="todos">TODOS LOS CHOFERES</option>
-            </select>
-        </div>
-        <button class="btn-config" onclick="window.togglePanel()">⚙️ CONFIGURACIÓN</button>
-        <div id="contador">Sincronizando...</div>
-        <div id="db-status" onclick="window.handleSecretReset()">NUBE: CONECTANDO...</div>
+      </div>
+
+      <div class="form-group">
+        <label for="ciInput">Cédula de identidad</label>
+        <input id="ciInput" type="text" placeholder="Ej: 1234567" autocomplete="off" />
+      </div>
+
+      <div class="form-group">
+        <label for="chapaInput">Chapa del móvil</label>
+        <input id="chapaInput" type="text" placeholder="Ej: AAHT556" autocomplete="off" />
+      </div>
+
+      <div class="form-group">
+        <label for="fechaInput">Fecha de ruta</label>
+        <input id="fechaInput" type="date" />
+      </div>
+
+      <button id="btnLogin" class="btn-primary" onclick="window.cargarRutaChofer(true)">Cargar mi ruta</button>
+
+      <div id="loginMsg" class="login-msg">
+        Ingrese CI, chapa y fecha para consultar la ruta asignada.
+      </div>
+    </div>
+  </div>
+
+  <div id="topPanel" class="top-panel">
+    <div class="driver-box">
+      <div id="driverName" class="driver-name">Sin chofer</div>
+      <div id="driverMeta" class="driver-meta">Sin ruta cargada</div>
     </div>
 
-    <div id="panel-config">
-        <div style="padding:15px; border-bottom:1px solid #eee; background:#0078d4; color:white; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
-            <strong>CONFIGURACIÓN</strong> 
-            <button onclick="window.togglePanel()" style="border:none;background:none;cursor:pointer;color:white;font-size:20px;">×</button>
-        </div>
-        <div style="padding:15px;">
-            <span class="label-filter">Diseño del Ícono</span>
-            <select id="selectIcono" onchange="window.cambiarTipoIcono(this.value)" style="margin-bottom:15px">
-                <option value="pin">Pin Profesional</option>
-                <option value="circle">Punto Circular</option>
-            </select>
-            <p style="font-size: 10px; color: #64748b; text-align: center; margin-top: 15px;">Versión Maestro 10.3 - LogiTrack Pro</p>
-        </div>
+    <div class="stats-grid">
+      <div class="stat"><b id="statPuntos">0</b><span>Puntos</span></div>
+      <div class="stat"><b id="statFacturas">0</b><span>Facturas</span></div>
+      <div class="stat"><b id="statPeso">0</b><span>Kg</span></div>
+      <div class="stat"><b id="statPallets">0</b><span>Pallets</span></div>
     </div>
 
-    <div id="map"></div>
+    <div class="panel-actions">
+      <button class="btn-success" onclick="window.activarGPS()">📍 Mi ubicación</button>
+      <button class="btn-secondary" onclick="window.refrescarRuta()">🔄 Refrescar ruta</button>
+      <button class="btn-danger" onclick="window.finalizarRuta()">🏁 Finalizar ruta</button>
+      <button class="btn-secondary" onclick="window.salir()">Cambiar chofer</button>
+    </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <script type="module">
-        import { initializeApp, deleteApp, getApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, getDocs, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    <div id="apiStatus" class="status-line">API: CONECTANDO...</div>
+  </div>
 
-        // --- CONFIGURACIÓN DE NUBE (LLAVE ORIGINAL MX Z8WA) ---
-        const myFirebaseConfig = {
-            apiKey: "AIzaSyCPPLoQOVvEsTV8p6SAynsLqfsvvmxZ8wA",
-            authDomain: "master-control-flota.firebaseapp.com",
-            projectId: "master-control-flota",
-            storageBucket: "master-control-flota.firebasestorage.app",
-            messagingSenderId: "102366703423",
-            appId: "1:102366703423:web:486d885f846cc2f82fad8a",
-            measurementId: "G-T3NHDNL2E9"
-        };
+  <div id="sidePanel" class="side-panel">
+    <div class="side-header">
+      <div>
+        <h2 id="sideTitle" class="side-title">Detalle</h2>
+        <div id="sideSubtitle" class="side-subtitle"></div>
+      </div>
+      <button class="side-close" onclick="window.cerrarPanel()">×</button>
+    </div>
+    <div id="sideBody" class="side-body"></div>
+  </div>
 
-        const SHEET_API = 'https://script.google.com/macros/s/AKfycbw4MMDN7k9m9V34L62FDWryaed0iPQZhWqVIC37G7SXNjS8m-vxvthHmiuX70len8-9/exec'; 
-        const appIdInterno = 'master-control-flota'; 
-        const PROXIMITY_THRESHOLD = 0.0002;
+  <div id="map"></div>
+  <div id="toast" class="toast"></div>
 
-        window.visitasMemoria = {};
-        window.datosGlobales = [];
-        window.clientesMapeados = {};
-        window.tipoIconoGlobal = localStorage.getItem('tipoIconoV10') || 'pin';
-        let db = null, auth = null, currentUser = null;
-        let secretClicks = 0;
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-        // --- MÓDULO DE EVENTOS ---
-        window.gestionarEvento = async (id) => {
-            const currentData = window.visitasMemoria[id] || {};
-            const eventoActivo = currentData.evento && !currentData.evento.resolved;
+  <script>
+    const SHEET_API = "https://script.google.com/macros/s/AKfycbw4MMDN7k9m9V34L62FDWryaed0iPQZhWqVIC37G7SXNjS8m-vxvthHmiuX70len8-9/exec";
 
-            if (!eventoActivo) {
-                // Generar nuevo evento
-                const desc = prompt("DESCRIBA EL EVENTO O PROBLEMA:");
-                if (!desc || desc.trim() === "") return;
+    const state = {
+      ci: "",
+      chapa: "",
+      fecha: "",
+      chofer: null,
+      movil: null,
+      resumen: null,
+      paradas: [],
+      paradasMap: {},
+      facturasCache: {},
+      productosCache: {},
+      paradaActiva: null,
+      facturaActiva: null
+    };
 
-                if (!window.visitasMemoria[id]) window.visitasMemoria[id] = { facturas: {} };
-                window.visitasMemoria[id].evento = {
-                    descripcion: desc.trim(),
-                    resolved: false,
-                    ts: new Date().toISOString()
-                };
+    const formatoNum = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 2 });
+    const formatoGs = new Intl.NumberFormat("es-PY", { maximumFractionDigits: 0 });
 
-                await window.sincronizarEventoExcel(id, desc.trim(), "EVENTO ABIERTO");
-            } else {
-                // Consultar resolución
-                const res = confirm(`¿YA FUE RESUELTO ESTE EVENTO?\n"${currentData.evento.descripcion}"`);
-                if (res) {
-                    window.visitasMemoria[id].evento.resolved = true;
-                    await window.sincronizarEventoExcel(id, "RESUELTO: " + currentData.evento.descripcion, "EVENTO RESUELTO");
-                } else {
-                    await window.sincronizarEventoExcel(id, currentData.evento.descripcion, "EVENTO NO RESUELTO");
-                }
-            }
-            
-            window.actualizarMapa();
-            setTimeout(() => window.abrirDetalleCliente(id), 50);
-            
-            if (db && currentUser) {
-                await setDoc(doc(db, 'artifacts', appIdInterno, 'public', 'data', 'visitas', String(id)), window.visitasMemoria[id]);
-            }
-        };
+    const map = L.map("map", { zoomControl: false }).setView([-25.30, -57.60], 11);
+    L.control.zoom({ position: "bottomright" }).addTo(map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
 
-        window.sincronizarEventoExcel = async (id, msg, excelStatus) => {
-            const url = `${SHEET_API}?mode=update&codBoca=${encodeURIComponent(id)}&status=EVENTO_ONLY&evento=${encodeURIComponent(msg)}&motivo=${encodeURIComponent(excelStatus)}`;
-            fetch(url, { mode: 'no-cors' });
-        };
+    const layerGroup = L.layerGroup().addTo(map);
+    let userMarker = null;
 
-        // --- SINCRONIZACIÓN Y RESET ---
-        window.actualizarFactura = async (bocaId, facturaId, nuevoEstado) => {
-            let motivo = "";
-            if (nuevoEstado !== "ENTREGADO") {
-                motivo = prompt(`Ingrese motivo para la factura ${facturaId} (${nuevoEstado}):`);
-                if (motivo === null) return;
-                if (motivo.trim() === "") motivo = "Sin motivo especificado";
-            }
+    map.on("zoomend", () => {
+      const z = map.getZoom();
+      document.body.classList.toggle("zoom-high", z >= 14);
+      document.body.classList.toggle("zoom-low", z < 14);
+    });
 
-            if (!window.visitasMemoria[bocaId]) window.visitasMemoria[bocaId] = { facturas: {} };
-            if (!window.visitasMemoria[bocaId].facturas) window.visitasMemoria[bocaId].facturas = {};
-            
-            window.visitasMemoria[bocaId].facturas[facturaId] = { status: nuevoEstado, motivo: motivo, ts: new Date().toISOString() };
-            window.actualizarMapa();
-            setTimeout(() => window.abrirDetalleCliente(bocaId), 50);
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("fechaInput").value = fechaHoyISO();
+      verificarAPI();
+    });
 
-            try {
-                if (db && currentUser) {
-                    await setDoc(doc(db, 'artifacts', appIdInterno, 'public', 'data', 'visitas', String(bocaId)), window.visitasMemoria[bocaId]);
-                }
-                const updateUrl = `${SHEET_API}?mode=update&codBoca=${encodeURIComponent(bocaId)}&factura=${encodeURIComponent(facturaId)}&status=${encodeURIComponent(nuevoEstado)}&motivo=${encodeURIComponent(motivo)}`;
-                fetch(updateUrl, { mode: 'no-cors' });
-            } catch(e) { console.error("Error sync:", e); }
-        };
+    function fechaHoyISO() {
+      const d = new Date();
+      const offset = d.getTimezoneOffset();
+      const local = new Date(d.getTime() - offset * 60000);
+      return local.toISOString().slice(0, 10);
+    }
 
-        window.resetPunto = async (id) => {
-            if(!confirm("¿Borrar estados de este punto?")) return;
-            delete window.visitasMemoria[id];
-            window.actualizarMapa();
-            try {
-                if (db && currentUser) await deleteDoc(doc(db, 'artifacts', appIdInterno, 'public', 'data', 'visitas', String(id)));
-                fetch(`${SHEET_API}?mode=update&codBoca=${id}&status=PENDIENTE&motivo=RESET`, { mode: 'no-cors' }).finally(() => map.closePopup());
-            } catch(e) {}
-        };
+    async function apiGet(params) {
+      const url = `${SHEET_API}?${new URLSearchParams(params).toString()}`;
+      const response = await fetch(url, { redirect: "follow" });
+      return await response.json();
+    }
 
-        window.handleSecretReset = () => {
-            secretClicks++;
-            if (secretClicks >= 5) { secretClicks = 0; window.borrarVisitasMasivo(); }
-            setTimeout(() => { secretClicks = 0; }, 3000);
-        };
+    async function verificarAPI() {
+      try {
+        const data = await apiGet({ mode: "status" });
+        document.getElementById("apiStatus").textContent = data.ok ? "API: CONECTADA" : "API: ERROR";
+      } catch (error) {
+        document.getElementById("apiStatus").textContent = "API: ERROR";
+      }
+    }
 
-        window.borrarVisitasMasivo = async () => {
-            const pin = prompt("PIN Administrador:");
-            if (pin === "1234") {
-                if (confirm("ATENCIÓN: Se borrarán TODOS los puntos para todos los usuarios. ¿Desea continuar?")) {
-                    const statusEl = document.getElementById("db-status");
-                    statusEl.innerText = "BORRANDO...";
-                    try {
-                        if (db && currentUser) {
-                            const snap = await getDocs(collection(db, 'artifacts', appIdInterno, 'public', 'data', 'visitas'));
-                            const docs = snap.docs;
-                            if (docs.length > 0) {
-                                for (let i = 0; i < docs.length; i += 500) {
-                                    const batch = writeBatch(db);
-                                    const chunk = docs.slice(i, i + 500);
-                                    chunk.forEach(d => batch.delete(d.ref));
-                                    await batch.commit();
-                                }
-                            }
-                            await fetch(`${SHEET_API}?mode=update&codBoca=ALL_POINTS`, { mode: 'no-cors' });
-                            window.visitasMemoria = {};
-                            window.actualizarMapa();
-                            alert("Base de datos reiniciada.");
-                            statusEl.innerText = "NUBE: CONECTADO";
-                        }
-                    } catch (e) { alert("Error al resetear."); }
-                }
-            }
-        };
+    window.cargarRutaChofer = async function(showLoginErrors) {
+      const ci = document.getElementById("ciInput").value.trim();
+      const chapa = document.getElementById("chapaInput").value.trim().toUpperCase();
+      const fecha = document.getElementById("fechaInput").value.trim();
 
-        // --- MAPA ---
-        var map = L.map('map', {zoomControl: false}).setView([-25.30, -57.60], 11);
-        L.control.zoom({position: 'bottomright'}).addTo(map);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        var layerGroup = L.layerGroup().addTo(map);
-        const formatoDinero = new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 });
+      if (!ci || !chapa || !fecha) {
+        setLoginMsg("Debe ingresar CI, chapa y fecha.", true);
+        return;
+      }
 
-        map.on('zoomend', () => {
-            const z = map.getZoom();
-            document.body.classList.toggle('zoom-high', z >= 14);
-            document.body.classList.toggle('zoom-low', z < 14);
+      state.ci = ci;
+      state.chapa = chapa;
+      state.fecha = fecha;
+
+      const btn = document.getElementById("btnLogin");
+      btn.disabled = true;
+      btn.textContent = "Cargando...";
+
+      try {
+        const data = await apiGet({
+          mode: "loginRuta",
+          ci,
+          chapa,
+          fecha
         });
 
-        function getVal(obj, keys) {
-            if(!obj) return null;
-            const objKeys = Object.keys(obj);
-            for (let k of keys) {
-                const searchKey = k.toLowerCase().replace(/[\s\._\/]/g, '');
-                const foundKey = objKeys.find(ok => ok.toLowerCase().replace(/[\s\._\/]/g, '') === searchKey);
-                if (foundKey) return obj[foundKey];
-            }
-            return null;
+        if (!data.ok) {
+          setLoginMsg(data.mensaje || "No se pudo cargar la ruta.", true);
+          return;
         }
 
-        async function cargarDatosExcel() {
-            try {
-                const response = await fetch(SHEET_API);
-                const rawData = await response.json();
-                window.datosGlobales = rawData.map(d => ({
-                    ...d,
-                    _transp_limpia: String(getVal(d, ["Transportista", "Transp"]) || "").trim().toUpperCase(),
-                    _chofer_limpio: String(getVal(d, ["Chofer"]) || "").trim().toUpperCase(),
-                    _transp_original: String(getVal(d, ["Transportista", "Transp"]) || "").trim(),
-                    _chofer_original: String(getVal(d, ["Chofer"]) || "").trim(),
-                    _cod_boca: String(getVal(d, ["CodBoca", "Cód. Boca"]) || "").trim()
-                }));
-                const transpSet = new Set(window.datosGlobales.map(d => d._transp_original));
-                llenarSelect("filtroTransp", Array.from(transpSet).sort(), "TODAS LAS TRANSPORTADORAS");
-                window.cambioTransportadora(); 
-            } catch (e) { console.error(e); }
+        state.chofer = data.chofer;
+        state.movil = data.movil;
+        state.resumen = data.resumen;
+        state.paradas = data.data || [];
+        state.paradasMap = {};
+
+        state.paradas.forEach(p => {
+          state.paradasMap[String(p.ParadaID || `${p.RutaID}|${p.CodBoca}`)] = p;
+        });
+
+        document.getElementById("loginScreen").style.display = "none";
+        document.getElementById("topPanel").classList.add("active");
+
+        actualizarPanelChofer();
+        dibujarMapa();
+
+        toast("Ruta cargada correctamente.", "ok");
+
+      } catch (error) {
+        setLoginMsg("Error al conectar con LOGITRACK:\n" + error.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Cargar mi ruta";
+      }
+    };
+
+    window.refrescarRuta = async function() {
+      if (!state.ci || !state.chapa || !state.fecha) return;
+      await cargarRutaChofer(false);
+    };
+
+    function setLoginMsg(text, isError) {
+      const el = document.getElementById("loginMsg");
+      el.textContent = text;
+      el.className = isError ? "login-msg error" : "login-msg";
+    }
+
+    function actualizarPanelChofer() {
+      const chofer = state.chofer || {};
+      const movil = state.movil || {};
+      const resumen = state.resumen || {};
+
+      document.getElementById("driverName").textContent = chofer.chofer || "Chofer";
+      document.getElementById("driverMeta").innerHTML =
+        `CI: ${chofer.ci || ""}<br>` +
+        `Transportadora: ${chofer.transportadora || ""}<br>` +
+        `Chapa: ${movil.chapa || ""} | Fecha: ${state.fecha}`;
+
+      document.getElementById("statPuntos").textContent = resumen.puntos || state.paradas.length || 0;
+      document.getElementById("statFacturas").textContent = resumen.facturas || 0;
+      document.getElementById("statPeso").textContent = formatoNum.format(resumen.totalPesoKg || 0);
+      document.getElementById("statPallets").textContent = formatoNum.format(resumen.totalPallets || 0);
+    }
+
+    function dibujarMapa() {
+      layerGroup.clearLayers();
+
+      if (!state.paradas.length) {
+        toast("No hay paradas para esta ruta.", "error");
+        return;
+      }
+
+      const bounds = [];
+
+      state.paradas.forEach(parada => {
+        const lat = toNumber(parada.Latitud);
+        const lon = toNumber(parada.Longitud);
+
+        if (!lat || !lon) return;
+
+        bounds.push([lat, lon]);
+
+        const estado = cleanEstado(parada.EstadoParada || "PENDIENTE");
+        const color = colorPorEstado(estado);
+
+        const html = `
+          <div style="position:relative;">
+            <svg width="34" height="34" viewBox="0 0 24 24" style="filter:drop-shadow(0px 2px 2px rgba(0,0,0,0.3))">
+              <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22S19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="${color}"></path>
+              <circle cx="12" cy="9" r="3.5" fill="white"></circle>
+            </svg>
+          </div>
+        `;
+
+        const marker = L.marker([lat, lon], {
+          icon: L.divIcon({
+            className: "custom-marker",
+            html,
+            iconSize: [34, 34],
+            iconAnchor: [17, 34]
+          })
+        }).addTo(layerGroup);
+
+        marker.bindTooltip(
+          `<div>${escapeHtml(parada.OrdenPlanificado || "")}. ${escapeHtml(parada.Cliente || parada.Boca || "")}</div>`,
+          { permanent: true, direction: "right", className: "label-boca", offset: [15, -15] }
+        );
+
+        marker.bindPopup(crearPopupParada(parada));
+
+        marker.on("click", () => {
+          state.paradaActiva = parada;
+        });
+      });
+
+      if (bounds.length) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+
+      document.getElementById("apiStatus").textContent = `${state.paradas.length} puntos cargados`;
+    }
+
+    function crearPopupParada(p) {
+      const estado = cleanEstado(p.EstadoParada || "PENDIENTE");
+
+      return `
+        <div class="popup-card">
+          <div class="popup-title">${escapeHtml(p.Cliente || p.Boca || "Cliente")}</div>
+          <div class="popup-meta">
+            CodBoca: ${escapeHtml(p.CodBoca || "")}<br>
+            Ciudad: ${escapeHtml(p.Ciudad || "")}<br>
+            Facturas: ${p.CantidadFacturas || 0} | Productos: ${p.CantidadProductos || 0}<br>
+            Peso: ${formatoNum.format(toNumber(p.TotalPesoKg))} kg<br>
+            Estado: <span class="badge ${estado}">${estado}</span>
+          </div>
+          <button class="popup-btn" onclick="window.abrirParada('${escapeAttr(p.ParadaID || "")}', '${escapeAttr(p.CodBoca || "")}', '${escapeAttr(p.RutaID || "")}')">
+            Ver facturas
+          </button>
+          <a class="popup-btn" style="display:block;text-align:center;text-decoration:none;margin-top:8px;" target="_blank"
+            href="https://www.google.com/maps/dir/?api=1&destination=${p.Latitud},${p.Longitud}">
+            Ir con GPS
+          </a>
+        </div>
+      `;
+    }
+
+    window.abrirParada = async function(paradaId, codBoca, rutaId) {
+      const parada = state.paradas.find(p =>
+        String(p.ParadaID || "") === paradaId ||
+        (String(p.CodBoca || "") === codBoca && String(p.RutaID || "") === rutaId)
+      );
+
+      if (!parada) {
+        toast("No se encontró la parada.", "error");
+        return;
+      }
+
+      state.paradaActiva = parada;
+
+      document.getElementById("sideTitle").textContent = parada.Cliente || parada.Boca || "Cliente";
+      document.getElementById("sideSubtitle").innerHTML =
+        `CodBoca: ${escapeHtml(parada.CodBoca || "")}<br>` +
+        `Ciudad: ${escapeHtml(parada.Ciudad || "")} | Estado: ${escapeHtml(parada.EstadoParada || "PENDIENTE")}`;
+
+      abrirPanel();
+      setSideBody("Cargando facturas...");
+
+      try {
+        const data = await apiGet({
+          mode: "getFacturasParada",
+          paradaId: parada.ParadaID || "",
+          rutaId: parada.RutaID || "",
+          codBoca: parada.CodBoca || "",
+          fecha: state.fecha
+        });
+
+        if (!data.ok) {
+          setSideBody(data.mensaje || "No se pudieron cargar las facturas.");
+          return;
         }
 
-        function llenarSelect(id, lista, titulo) {
-            const s = document.getElementById(id);
-            s.innerHTML = `<option value="todos">${titulo}</option>`;
-            lista.forEach(i => { if(i) s.innerHTML += `<option value="${i}">${i}</option>`; });
+        state.facturasCache[parada.ParadaID] = data.data || [];
+        renderFacturas(data.data || []);
+
+      } catch (error) {
+        setSideBody("Error al cargar facturas:\n" + error.message);
+      }
+    };
+
+    function renderFacturas(facturas) {
+      if (!facturas.length) {
+        setSideBody("No hay facturas para esta parada.");
+        return;
+      }
+
+      const html = `
+        <div class="section-title">Facturas de la parada</div>
+        ${facturas.map(f => {
+          const estado = cleanEstado(f.EstadoFactura || "PENDIENTE");
+
+          return `
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Factura ${escapeHtml(f.NumFactura || "")}</div>
+                  <div class="card-meta">
+                    Pedido: ${escapeHtml(f.NumPedido || "")}<br>
+                    Productos: ${f.CantidadProductos || 0}<br>
+                    Peso: ${formatoNum.format(toNumber(f.TotalPesoKg))} kg |
+                    Importe: Gs. ${formatoGs.format(toNumber(f.TotalImporte))}
+                  </div>
+                </div>
+                <span class="badge ${estado}">${estado}</span>
+              </div>
+
+              <div class="btn-row">
+                <button class="btn-success" onclick="window.confirmarFactura('${escapeAttr(f.FacturaID || "")}')">Confirmar completa</button>
+                <button class="btn-secondary" onclick="window.verProductos('${escapeAttr(f.FacturaID || "")}')">Gestionar productos</button>
+              </div>
+
+              <div class="btn-row">
+                <button class="btn-danger" onclick="window.rechazarFactura('${escapeAttr(f.FacturaID || "")}')">Rechazar total</button>
+                <button class="btn-neutral" onclick="window.noDespachadoFactura('${escapeAttr(f.FacturaID || "")}')">No despachada</button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      `;
+
+      setSideBody(html);
+    }
+
+    window.verProductos = async function(facturaId) {
+      state.facturaActiva = facturaId;
+      setSideBody("Cargando productos...");
+
+      try {
+        const data = await apiGet({
+          mode: "getProductosFactura",
+          facturaId
+        });
+
+        if (!data.ok) {
+          setSideBody(data.mensaje || "No se pudieron cargar los productos.");
+          return;
         }
 
-        window.cambioTransportadora = () => {
-            const valTransp = document.getElementById("filtroTransp").value;
-            const choferesSet = new Set();
-            window.datosGlobales.forEach(d => {
-                if (valTransp === "todos" || d._transp_original === valTransp) choferesSet.add(d._chofer_original);
+        state.productosCache[facturaId] = data.data || [];
+        renderProductos(facturaId, data.data || []);
+
+      } catch (error) {
+        setSideBody("Error al cargar productos:\n" + error.message);
+      }
+    };
+
+    function renderProductos(facturaId, productos) {
+      if (!productos.length) {
+        setSideBody("No hay productos para esta factura.");
+        return;
+      }
+
+      const factura = buscarFactura(facturaId);
+      const titulo = factura ? `Factura ${factura.NumFactura}` : "Productos";
+
+      const html = `
+        <button class="btn-secondary" style="margin-bottom:10px;" onclick="window.abrirParada('${escapeAttr(state.paradaActiva.ParadaID || "")}', '${escapeAttr(state.paradaActiva.CodBoca || "")}', '${escapeAttr(state.paradaActiva.RutaID || "")}')">
+          ← Volver a facturas
+        </button>
+
+        <div class="section-title">${escapeHtml(titulo)}</div>
+
+        ${productos.map(p => {
+          const estado = cleanEstado(p.EstadoProducto || "PENDIENTE");
+
+          return `
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">${escapeHtml(p.ProductoMaestro || p.DescripcionProducto || "Producto")}</div>
+                  <div class="card-meta">
+                    Código: ${escapeHtml(p.CodProducto || "")}<br>
+                    Planificado: ${formatoNum.format(toNumber(p.CantidadPlanificada))} ${escapeHtml(p.UnidadMedida || "")}<br>
+                    Unidades: ${formatoNum.format(toNumber(p.CantidadUnidades))}<br>
+                    Cajas: ${formatoNum.format(toNumber(p.CajasCalculadas))} |
+                    Pallets: ${formatoNum.format(toNumber(p.PalletsCalculados))}<br>
+                    Peso: ${formatoNum.format(toNumber(p.PesoKgCalculado))} kg
+                  </div>
+                </div>
+                <span class="badge ${estado}">${estado}</span>
+              </div>
+
+              <div class="product-line">
+                Entregado: ${p.CantidadEntregada || "-"} |
+                Rechazado: ${p.CantidadRechazada || "-"}<br>
+                Motivo: ${escapeHtml(p.MotivoProducto || "-")}
+              </div>
+
+              <div class="btn-row-4">
+                <button class="btn-success" onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'ENTREGADO_TOTAL')">Total</button>
+                <button class="btn-warning" onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'ENTREGADO_PARCIAL')">Parcial</button>
+                <button class="btn-danger" onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'RECHAZADO_TOTAL')">Rechazo</button>
+                <button class="btn-neutral" onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'NO_DESPACHADO')">N/D</button>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      `;
+
+      setSideBody(html);
+    }
+
+    window.confirmarFactura = async function(facturaId) {
+      if (!confirm("¿Confirmar factura completa como entregada?")) return;
+      await ejecutarAccionFactura("confirmarFacturaCompleta", facturaId, "");
+    };
+
+    window.rechazarFactura = async function(facturaId) {
+      const motivo = prompt("Motivo del rechazo total:");
+      if (motivo === null) return;
+      if (!motivo.trim()) {
+        toast("Debe ingresar motivo.", "error");
+        return;
+      }
+      await ejecutarAccionFactura("rechazarFacturaCompleta", facturaId, motivo.trim());
+    };
+
+    window.noDespachadoFactura = async function(facturaId) {
+      const motivo = prompt("Motivo de no despachado:");
+      if (motivo === null) return;
+      if (!motivo.trim()) {
+        toast("Debe ingresar motivo.", "error");
+        return;
+      }
+      await ejecutarAccionFactura("noDespachadoFactura", facturaId, motivo.trim());
+    };
+
+    async function ejecutarAccionFactura(mode, facturaId, motivo) {
+      try {
+        toast("Capturando ubicación...");
+        const gps = await obtenerGPS();
+
+        const data = await apiGet({
+          mode,
+          ci: state.ci,
+          chapa: state.chapa,
+          fecha: state.fecha,
+          facturaId,
+          motivo,
+          lat: gps.lat,
+          lng: gps.lng,
+          precision: gps.precision
+        });
+
+        if (!data.ok) {
+          toast(data.mensaje || "No se pudo actualizar la factura.", "error");
+          return;
+        }
+
+        toast(data.mensaje || "Factura actualizada.", "ok");
+        await refrescarDespuesDeGestion();
+
+      } catch (error) {
+        toast("Error:\n" + error.message, "error");
+      }
+    }
+
+    window.actualizarProducto = async function(productoFacturaId, estado) {
+      let cantidadEntregada = "";
+      let motivo = "";
+
+      if (estado === "ENTREGADO_PARCIAL") {
+        cantidadEntregada = prompt("Cantidad entregada:");
+        if (cantidadEntregada === null) return;
+
+        motivo = prompt("Motivo de entrega parcial:");
+        if (motivo === null) return;
+
+        if (!motivo.trim()) {
+          toast("Debe ingresar motivo.", "error");
+          return;
+        }
+      }
+
+      if (estado === "RECHAZADO_TOTAL") {
+        motivo = prompt("Motivo del rechazo total:");
+        if (motivo === null) return;
+
+        if (!motivo.trim()) {
+          toast("Debe ingresar motivo.", "error");
+          return;
+        }
+      }
+
+      if (estado === "NO_DESPACHADO") {
+        motivo = prompt("Motivo de no despachado:");
+        if (motivo === null) return;
+
+        if (!motivo.trim()) {
+          toast("Debe ingresar motivo.", "error");
+          return;
+        }
+      }
+
+      try {
+        toast("Capturando ubicación...");
+        const gps = await obtenerGPS();
+
+        const data = await apiGet({
+          mode: "actualizarProducto",
+          ci: state.ci,
+          chapa: state.chapa,
+          fecha: state.fecha,
+          productoFacturaId,
+          estadoProducto: estado,
+          cantidadEntregada,
+          motivo,
+          lat: gps.lat,
+          lng: gps.lng,
+          precision: gps.precision
+        });
+
+        if (!data.ok) {
+          toast(data.mensaje || "No se pudo actualizar el producto.", "error");
+          return;
+        }
+
+        toast(data.mensaje || "Producto actualizado.", "ok");
+        await refrescarDespuesDeGestion();
+
+      } catch (error) {
+        toast("Error:\n" + error.message, "error");
+      }
+    };
+
+    async function refrescarDespuesDeGestion() {
+      await cargarRutaChofer(false);
+
+      if (state.facturaActiva) {
+        await verProductos(state.facturaActiva);
+      } else if (state.paradaActiva) {
+        await abrirParada(
+          state.paradaActiva.ParadaID || "",
+          state.paradaActiva.CodBoca || "",
+          state.paradaActiva.RutaID || ""
+        );
+      }
+    }
+
+    window.finalizarRuta = async function() {
+      if (!confirm("¿Desea finalizar la ruta? Solo se permitirá si no existen pendientes.")) return;
+
+      try {
+        toast("Validando pendientes...");
+        const gps = await obtenerGPS();
+
+        const data = await apiGet({
+          mode: "finalizarRuta",
+          ci: state.ci,
+          chapa: state.chapa,
+          fecha: state.fecha,
+          lat: gps.lat,
+          lng: gps.lng,
+          precision: gps.precision
+        });
+
+        if (!data.ok) {
+          const pendientes = data.pendientes || {};
+          let msg = data.mensaje || "No se puede cerrar la ruta.";
+
+          msg += `\n\nParadas pendientes: ${pendientes.paradas || 0}`;
+          msg += `\nFacturas pendientes: ${pendientes.facturas || 0}`;
+          msg += `\nProductos pendientes: ${pendientes.productos || 0}`;
+
+          if (data.primerosPendientes && data.primerosPendientes.length) {
+            msg += "\n\nPrimeros pendientes:";
+            data.primerosPendientes.forEach(p => {
+              msg += `\n- Fact ${p.NumFactura || ""} | ${p.Boca || ""} | ${p.CodProducto || ""}`;
             });
-            llenarSelect("filtroChofer", Array.from(choferesSet).sort(), "TODOS LOS CHOFERES");
-            window.actualizarMapa();
-        };
+          }
 
-        window.actualizarMapa = () => {
-            if (!layerGroup || !window.datosGlobales.length) return;
-            layerGroup.clearLayers();
-            const selTransp = document.getElementById("filtroTransp").value;
-            const selChofer = document.getElementById("filtroChofer").value;
-            const agrupaciones = [];
-            window.clientesMapeados = {};
+          toast(msg, "error");
+          return;
+        }
 
-            window.datosGlobales.forEach(i => {
-                if (selTransp !== "todos" && i._transp_original !== selTransp) return;
-                if (selChofer !== "todos" && i._chofer_original !== selChofer) return;
-                const lat = parseFloat(String(getVal(i, ["Latitud", "Lat"]) || "").replace(',', '.'));
-                const lon = parseFloat(String(getVal(i, ["Longitud", "Lon"]) || "").replace(',', '.'));
-                if (isNaN(lat)) return;
-                const bocaId = i._cod_boca;
+        toast(data.mensaje || "Ruta cerrada correctamente.", "ok");
+        await cargarRutaChofer(false);
 
-                if (!window.clientesMapeados[bocaId]) {
-                    window.clientesMapeados[bocaId] = { 
-                        lat, lon, id: bocaId, cliente: getVal(i, ["Cliente", "Boca"]),
-                        ciudad: getVal(i, ["Ciudad"]) || "S/C", chofer: i._chofer_original,
-                        facturas: new Set(), pesoTotal: 0, importeTotal: 0 
-                    };
-                }
-                const f = getVal(i, ["NumFactura", "Factura"]);
-                if(f) window.clientesMapeados[bocaId].facturas.add(String(f).trim());
-                window.clientesMapeados[bocaId].pesoTotal += parseFloat(String(getVal(i, ["Suma de Peso Total", "Peso"]) || "0").replace(/[^0-9.]/g, '')) || 0;
-                window.clientesMapeados[bocaId].importeTotal += parseFloat(String(getVal(i, ["Suma de ImportePedidos/IVA", "Importe"]) || "0").replace(/[^0-9]/g, '')) || 0;
+      } catch (error) {
+        toast("Error al finalizar ruta:\n" + error.message, "error");
+      }
+    };
 
-                let encontrado = false;
-                for (let grupo of agrupaciones) {
-                    const dist = Math.sqrt(Math.pow(grupo.lat - lat, 2) + Math.pow(grupo.lon - lon, 2));
-                    if (dist < PROXIMITY_THRESHOLD) { grupo.idsBoca.add(bocaId); encontrado = true; break; }
-                }
-                if (!encontrado) agrupaciones.push({ lat, lon, idsBoca: new Set([bocaId]) });
+    window.activarGPS = function() {
+      if (!navigator.geolocation) {
+        toast("GPS no disponible en este dispositivo.", "error");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+
+          if (userMarker) {
+            userMarker.setLatLng([lat, lng]);
+          } else {
+            userMarker = L.circleMarker([lat, lng], {
+              radius: 8,
+              color: "#0ea5e9",
+              fillColor: "#38bdf8",
+              fillOpacity: 0.9
+            }).addTo(map);
+          }
+
+          map.setView([lat, lng], 16);
+          toast("Ubicación detectada.", "ok");
+        },
+        err => {
+          toast("No se pudo obtener ubicación: " + err.message, "error");
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
+      );
+    };
+
+    function obtenerGPS() {
+      return new Promise(resolve => {
+        if (!navigator.geolocation) {
+          resolve({ lat: "", lng: "", precision: "" });
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            resolve({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              precision: pos.coords.accuracy || ""
             });
+          },
+          () => {
+            resolve({ lat: "", lng: "", precision: "" });
+          },
+          { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
+        );
+      });
+    }
 
-            agrupaciones.forEach(grupo => {
-                const ids = Array.from(grupo.idsBoca);
-                const esMulti = ids.length > 1;
-                let colorActual = "#0284c7"; 
-                let hasProcessed = false; let hasEvent = false;
+    window.salir = function() {
+      if (!confirm("¿Cambiar de chofer?")) return;
 
-                ids.forEach(id => {
-                    const visit = window.visitasMemoria[id];
-                    if (visit) {
-                        if (Object.keys(visit.facturas || {}).length > 0) hasProcessed = true;
-                        if (visit.evento && !visit.evento.resolved) hasEvent = true;
-                    }
-                });
+      state.ci = "";
+      state.chapa = "";
+      state.chofer = null;
+      state.movil = null;
+      state.resumen = null;
+      state.paradas = [];
+      state.paradasMap = {};
+      state.facturasCache = {};
+      state.productosCache = {};
+      state.paradaActiva = null;
+      state.facturaActiva = null;
 
-                if (hasEvent) colorActual = "#ef4444"; 
-                else if (hasProcessed) colorActual = "#64748b"; 
+      layerGroup.clearLayers();
+      cerrarPanel();
 
-                const iconHtml = `<div style="position:relative;">
-                    ${window.tipoIconoGlobal === "circle" 
-                        ? `<div style="background:${colorActual}; width:18px; height:18px; border:2px solid white; border-radius:50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>`
-                        : `<svg width="34" height="34" viewBox="0 0 24 24" style="filter: drop-shadow(0px 2px 2px rgba(0,0,0,0.3))"><path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22S19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="${colorActual}"/><circle cx="12" cy="9" r="3.5" fill="white"/></svg>`
-                    }
-                    ${esMulti ? `<div class="badge-multi">${ids.length}</div>` : ''}
-                </div>`;
+      document.getElementById("topPanel").classList.remove("active");
+      document.getElementById("loginScreen").style.display = "flex";
+      setLoginMsg("Ingrese CI, chapa y fecha para consultar la ruta asignada.", false);
+    };
 
-                const marker = L.marker([grupo.lat, grupo.lon], { icon: L.divIcon({ className: 'custom-div-icon', html: iconHtml, iconSize: [34, 34], iconAnchor: [17, 34] }) }).addTo(layerGroup);
-                if (!esMulti) marker.bindTooltip(`<div>${window.clientesMapeados[ids[0]].cliente}</div>`, { permanent: true, direction: 'right', className: 'label-boca', offset: [15, -15] });
-                else marker.bindTooltip(`<div>${ids.length} CLIENTES CERCANOS</div>`, { permanent: true, direction: 'right', className: 'label-boca', offset: [15, -15] });
-                marker.on('click', () => { if (!esMulti) window.abrirDetalleCliente(ids[0]); else window.abrirMenuSeleccion(ids, grupo.lat, grupo.lon); });
-            });
-            document.getElementById("contador").innerText = Object.keys(window.clientesMapeados).length + " Puntos Cargados";
-        };
+    function buscarFactura(facturaId) {
+      const listas = Object.values(state.facturasCache);
+      for (const lista of listas) {
+        const f = lista.find(x => String(x.FacturaID) === String(facturaId));
+        if (f) return f;
+      }
+      return null;
+    }
 
-        window.abrirMenuSeleccion = (ids, lat, lon) => {
-            let html = `<div class="popup-container"><div class="popup-header"><h3>Varios clientes cercanos</h3></div><div class="multi-selection-list">`;
-            ids.forEach(id => {
-                const c = window.clientesMapeados[id];
-                const visit = window.visitasMemoria[id] || {};
-                const hecho = Object.keys(visit.facturas || {}).length > 0;
-                const hayEv = visit.evento && !visit.evento.resolved;
-                const icon = hayEv ? "⚠️" : (hecho ? "✅" : "🔵");
-                html += `<div class="btn-select-client" onclick="window.abrirDetalleCliente('${id}')"><div><div class="client-name">${icon} ${c.cliente}</div><div class="client-info">ID: ${id} | ${c.facturas.size} Facturas</div></div></div>`;
-            });
-            html += `</div></div>`;
-            L.popup().setLatLng([lat, lon]).setContent(html).openOn(map);
-        };
+    function abrirPanel() {
+      document.getElementById("sidePanel").classList.add("active");
+    }
 
-        window.abrirDetalleCliente = (id) => {
-            const g = window.clientesMapeados[id];
-            const visit = window.visitasMemoria[id] || {};
-            const facturasData = visit.facturas || {};
-            const eventoActivo = visit.evento && !visit.evento.resolved;
+    window.cerrarPanel = function() {
+      document.getElementById("sidePanel").classList.remove("active");
+      state.facturaActiva = null;
+    };
 
-            let factRowsHtml = "";
-            Array.from(g.facturas).forEach(fId => {
-                const fD = facturasData[fId] || { status: "PENDIENTE", motivo: "" };
-                factRowsHtml += `<div class="factura-row">
-                    <div class="factura-header-info"><span style="font-size:11px;font-weight:800;color:#334155;">FACT: ${fId}</span><span class="factura-status-badge dot-${fD.status.toLowerCase().replace(" ", "")}">${fD.status}</span></div>
-                    <div class="status-btn-group">
-                        <button onclick="window.actualizarFactura('${id}', '${fId}', 'ENTREGADO')" class="btn-factura-status ${fD.status==='ENTREGADO'?'active-entregado':''}">Entr.</button>
-                        <button onclick="window.actualizarFactura('${id}', '${fId}', 'PARCIAL')" class="btn-factura-status ${fD.status==='PARCIAL'?'active-parcial':''}">Parc.</button>
-                        <button onclick="window.actualizarFactura('${id}', '${fId}', 'RECHAZADO')" class="btn-factura-status ${fD.status==='RECHAZADO'?'active-rechazado':''}">Rech.</button>
-                        <button onclick="window.actualizarFactura('${id}', '${fId}', 'NO DESPACHADO')" class="btn-factura-status ${fD.status==='NO DESPACHADO'?'active-nodespachado':''}">N/D</button>
-                    </div>
-                </div>`;
-            });
+    function setSideBody(html) {
+      document.getElementById("sideBody").innerHTML = html;
+    }
 
-            const html = `<div class="popup-container">
-                <div class="popup-header"><div style="display:flex; justify-content:space-between; align-items:center;"><h3>${g.cliente}</h3><button onclick="window.actualizarMapa()" style="border:none; background:none; color:var(--primary); cursor:pointer;">✖</button></div><span style="font-size:10px;color:#64748b;">${g.ciudad} (ID: ${g.id})</span></div>
-                
-                <button onclick="window.gestionarEvento('${id}')" class="btn-evento ${eventoActivo?'active-evento':''}">
-                    ${eventoActivo ? '⚠️ EVENTO ACTIVO (GESTIONAR)' : '⚡ GENERAR EVENTO'}
-                </button>
+    function toast(msg, type) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.className = "toast active" + (type ? " " + type : "");
 
-                <div class="popup-section-title">Control por Factura</div>
-                <div class="facturas-list-container">${factRowsHtml}</div>
-                <table class="popup-table"><tr><td>Chofer</td><td>${g.chofer}</td></tr><tr><td>Peso Total</td><td class="val-peso">${g.pesoTotal.toFixed(2)} kg</td></tr><tr><td>Importe Total</td><td class="val-total">Gs. ${formatoDinero.format(g.importeTotal)}</td></tr></table>
-                ${Object.keys(facturasData).length > 0 || visit.evento ? `<button onclick='window.resetPunto("${id}")' class="btn-unconfirm-all">RESETEAR PUNTO</button>` : ''}
-                <a href="https://www.google.com/maps/dir/?api=1&destination=${g.lat},${g.lon}" target="_blank" class="nav-btn-footer">IR CON GPS</a>
-            </div>`;
-            L.popup().setLatLng([g.lat, g.lon]).setContent(html).openOn(map);
-        };
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => {
+        el.className = "toast";
+      }, type === "error" ? 8000 : 3000);
+    }
 
-        window.togglePanel = () => { document.getElementById("panel-config").style.display = (document.getElementById("panel-config").style.display === "none" || document.getElementById("panel-config").style.display === "") ? "block" : "none"; };
-        window.cambiarTipoIcono = (val) => { window.tipoIconoGlobal = val; localStorage.setItem('tipoIconoV10', val); window.actualizarMapa(); };
-        window.activarGPS = () => { map.locate({setView: true, maxZoom: 16, enableHighAccuracy: true}); };
+    function colorPorEstado(estado) {
+      estado = cleanEstado(estado);
 
-        const initFirebase = async () => {
-            const statusEl = document.getElementById("db-status");
-            try {
-                try { const old = getApp(); if(old) await deleteApp(old); } catch(e) {}
-                const app = initializeApp(myFirebaseConfig);
-                auth = getAuth(app); db = getFirestore(app);
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        currentUser = user; statusEl.innerText = "NUBE: CONECTADO"; statusEl.style.color = "#0284c7";
-                        onSnapshot(collection(db, 'artifacts', appIdInterno, 'public', 'data', 'visitas'), (snap) => {
-                            snap.docChanges().forEach(change => {
-                                if (change.type === "removed") delete window.visitasMemoria[change.doc.id];
-                                else window.visitasMemoria[change.doc.id] = change.doc.data();
-                            });
-                            window.actualizarMapa();
-                        });
-                        cargarDatosExcel();
-                    } else { await signInAnonymously(auth); }
-                });
-            } catch(e) { statusEl.innerText = "NUBE: ERROR"; cargarDatosExcel(); }
-        };
+      if (estado === "ENTREGADO" || estado === "ENTREGADO_TOTAL") return "#22c55e";
+      if (estado === "PARCIAL" || estado === "ENTREGADO_PARCIAL") return "#f59e0b";
+      if (estado === "RECHAZADO" || estado === "RECHAZADO_TOTAL") return "#ef4444";
+      if (estado === "NO_DESPACHADO") return "#64748b";
+      return "#0284c7";
+    }
 
-        initFirebase();
-    </script>
+    function cleanEstado(v) {
+      return String(v || "PENDIENTE").trim().toUpperCase().replace(/\s+/g, "_");
+    }
+
+    function toNumber(v) {
+      if (typeof v === "number") return isNaN(v) ? 0 : v;
+
+      let txt = String(v || "").trim().replace(/\s/g, "");
+      if (!txt) return 0;
+
+      if (txt.includes(",") && txt.includes(".")) {
+        txt = txt.replace(/\./g, "").replace(",", ".");
+      } else {
+        txt = txt.replace(",", ".");
+      }
+
+      txt = txt.replace(/[^0-9.-]/g, "");
+      const n = parseFloat(txt);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/`/g, "&#096;");
+    }
+  </script>
 </body>
 </html>
