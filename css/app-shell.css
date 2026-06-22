@@ -1,1 +1,172 @@
+/* LOGITRACK - app-shell.css */
 
+.app-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 1200;
+  display: none;
+  flex-direction: column;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.app-shell.active {
+  display: flex;
+}
+
+.app-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--line);
+  padding: 14px 14px 10px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.app-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.app-title {
+  font-size: 18px;
+  font-weight: 950;
+  color: #0f172a;
+  letter-spacing: 0.2px;
+}
+
+.app-subtitle {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.route-pill {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 9px;
+  font-weight: 950;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.app-view {
+  display: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 14px 92px;
+}
+
+.app-view.active {
+  display: block;
+}
+
+.progress-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.06);
+  margin-bottom: 12px;
+}
+
+.progress-title {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 950;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 10px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0284c7, #22c55e);
+  border-radius: 999px;
+  width: 0%;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.quick-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.quick-card b {
+  display: block;
+  font-size: 18px;
+  color: #0f172a;
+  margin-bottom: 3px;
+}
+
+.quick-card span {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.action-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2600;
+  display: none;
+  background: #ffffff;
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -8px 22px rgba(15, 23, 42, 0.12);
+  padding: 7px 6px calc(7px + env(safe-area-inset-bottom));
+}
+
+.bottom-nav.active {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.nav-item {
+  background: transparent;
+  color: #64748b;
+  border-radius: 12px;
+  padding: 8px 4px;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.nav-item.active {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.nav-icon {
+  display: block;
+  font-size: 17px;
+  margin-bottom: 2px;
+}
