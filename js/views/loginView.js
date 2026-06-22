@@ -3,6 +3,9 @@
 // - Inicializa fecha actual
 // - Verifica conexión con API
 // - Carga ruta del chofer
+// - Mantiene sesión activa con localStorage
+// - Si la fecha guardada no es hoy, consulta automáticamente la ruta de hoy
+// - Muestra mensajes diferenciados para ruta de hoy e histórico
 // - Oculta login y habilita la app
 // - Actualiza paneles iniciales
 
@@ -16,6 +19,8 @@ import {
   fechaHoyISO
 } from "../utils.js";
 
+const SESSION_KEY = "LOGITRACK_SESSION_V1";
+
 /**
  * Registra funciones globales para mantener compatibilidad
  * con onclick="window.cargarRutaChofer(true)".
@@ -26,6 +31,8 @@ export function registrarLoginView() {
   window.verificarAPI = verificarAPI;
   window.setLoginMsg = setLoginMsg;
   window.actualizarPanelChofer = actualizarPanelChofer;
+  window.guardarSesionActiva = guardarSesionActiva;
+  window.limpiarSesionActiva = limpiarSesionActiva;
 }
 
 /**
@@ -40,6 +47,61 @@ export function inicializarLogin() {
   }
 
   verificarAPI();
+
+  setTimeout(() => {
+    restaurarSesionActiva();
+  }, 250);
+}
+
+/**
+ * Restaura la sesión guardada.
+ *
+ * Regla:
+ * - Si hay CI/chapa guardados, se reutilizan.
+ * - Si la fecha guardada no es la fecha actual, se cambia automáticamente a hoy.
+ * - Luego intenta cargar la ruta automáticamente.
+ */
+function restaurarSesionActiva() {
+  const sesion = leerSesionActiva();
+
+  if (!sesion || !sesion.mantenerSesion) return;
+
+  const hoy = fechaHoyISO();
+
+  const ci = String(sesion.ci || "").trim();
+  const chapa = String(sesion.chapa || "").trim().toUpperCase();
+  const fechaGuardada = String(sesion.fecha || "").trim();
+
+  if (!ci || !chapa) return;
+
+  const fechaParaCargar = fechaGuardada === hoy ? fechaGuardada : hoy;
+
+  const ciInput = document.getElementById("ciInput");
+  const chapaInput = document.getElementById("chapaInput");
+  const fechaInput = document.getElementById("fechaInput");
+  const rememberInput = document.getElementById("rememberSessionInput");
+
+  if (ciInput) ciInput.value = ci;
+  if (chapaInput) chapaInput.value = chapa;
+  if (fechaInput) fechaInput.value = fechaParaCargar;
+  if (rememberInput) rememberInput.checked = true;
+
+  guardarSesionActiva({
+    ci,
+    chapa,
+    fecha: fechaParaCargar,
+    mantenerSesion: true
+  });
+
+  if (fechaGuardada && fechaGuardada !== hoy) {
+    setLoginMsg("Sesión activa detectada. La fecha anterior no es de hoy; consultando la ruta actual...", false);
+  } else {
+    setLoginMsg("Sesión activa detectada. Cargando ruta automáticamente...", false);
+  }
+
+  setTimeout(() => {
+    cargarRutaChofer(false);
+  }, 400);
 }
 
 /**
@@ -49,17 +111,34 @@ export async function cargarRutaChofer(showLoginErrors = true) {
   const ciInput = document.getElementById("ciInput");
   const chapaInput = document.getElementById("chapaInput");
   const fechaInput = document.getElementById("fechaInput");
+  const rememberInput = document.getElementById("rememberSessionInput");
   const btn = document.getElementById("btnLogin");
 
   const ci = ciInput ? ciInput.value.trim() : "";
   const chapa = chapaInput ? chapaInput.value.trim().toUpperCase() : "";
   const fecha = fechaInput ? fechaInput.value.trim() : "";
+  const mantenerSesion = rememberInput ? rememberInput.checked : true;
 
   if (!ci || !chapa || !fecha) {
     if (showLoginErrors) {
       setLoginMsg("Debe ingresar CI, chapa y fecha.", true);
     }
     return;
+  }
+
+  /*
+    Guardamos antes de consultar.
+    Así, aunque el chofer no tenga ruta asignada, no vuelve a cargar CI/chapa.
+  */
+  if (mantenerSesion) {
+    guardarSesionActiva({
+      ci,
+      chapa,
+      fecha,
+      mantenerSesion: true
+    });
+  } else {
+    limpiarSesionActiva();
   }
 
   if (btn) {
@@ -75,10 +154,28 @@ export async function cargarRutaChofer(showLoginErrors = true) {
     });
 
     if (!result.ok) {
-      if (showLoginErrors) {
-        setLoginMsg(result.mensaje || "No se pudo cargar la ruta.", true);
+      const mensaje = construirMensajeSinRuta(result, fecha);
+
+      setLoginMsg(mensaje, true);
+
+      if (!showLoginErrors) {
+        toastLogin(mensaje, "error");
       }
+
       return;
+    }
+
+    /*
+      Si cargó correctamente y el usuario quiere mantener sesión,
+      actualizamos la sesión con los datos definitivos.
+    */
+    if (mantenerSesion) {
+      guardarSesionActiva({
+        ci,
+        chapa,
+        fecha,
+        mantenerSesion: true
+      });
     }
 
     ocultarLogin();
@@ -90,16 +187,94 @@ export async function cargarRutaChofer(showLoginErrors = true) {
     toastLogin(result.mensaje || "Ruta cargada correctamente.", "ok");
 
   } catch (error) {
+    const mensajeError = "Error al conectar con LOGITRACK:\n" + error.message;
+
     if (showLoginErrors) {
-      setLoginMsg("Error al conectar con LOGITRACK:\n" + error.message, true);
+      setLoginMsg(mensajeError, true);
     } else {
-      toastLogin("Error al refrescar ruta:\n" + error.message, "error");
+      setLoginMsg(mensajeError, true);
+      toastLogin(mensajeError, "error");
     }
   } finally {
     if (btn) {
       btn.disabled = false;
       btn.textContent = "Cargar mi ruta";
     }
+  }
+}
+
+/**
+ * Construye mensaje cuando no se encuentra ruta.
+ */
+function construirMensajeSinRuta(result, fechaConsulta) {
+  const mensajeApi = String(result?.mensaje || "").trim();
+
+  if (mensajeApi) {
+    const mensajeNormalizado = mensajeApi.toUpperCase();
+
+    if (
+      mensajeNormalizado.includes("NO TIENE RUTA") ||
+      mensajeNormalizado.includes("NO SE ENCUENTRA") ||
+      mensajeNormalizado.includes("NO HAY")
+    ) {
+      return mensajeApi;
+    }
+  }
+
+  const hoy = fechaHoyISO();
+
+  if (fechaConsulta === hoy) {
+    return "NO TIENE RUTA ASIGNADA PARA HOY";
+  }
+
+  return "NO SE ENCUENTRA REGISTRO HISTORICO DE LA FECHA";
+}
+
+/**
+ * Guarda sesión local.
+ */
+export function guardarSesionActiva({ ci, chapa, fecha, mantenerSesion }) {
+  try {
+    const payload = {
+      ci: String(ci || "").trim(),
+      chapa: String(chapa || "").trim().toUpperCase(),
+      fecha: String(fecha || "").trim(),
+      mantenerSesion: Boolean(mantenerSesion),
+      guardadoEn: new Date().toISOString()
+    };
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+
+  } catch (error) {
+    console.warn("No se pudo guardar la sesión:", error);
+  }
+}
+
+/**
+ * Lee sesión local.
+ */
+function leerSesionActiva() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+
+    if (!raw) return null;
+
+    return JSON.parse(raw);
+
+  } catch (error) {
+    console.warn("No se pudo leer la sesión:", error);
+    return null;
+  }
+}
+
+/**
+ * Borra sesión local.
+ */
+export function limpiarSesionActiva() {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch (error) {
+    console.warn("No se pudo limpiar la sesión:", error);
   }
 }
 
@@ -251,10 +426,12 @@ export function limpiarLoginInputs() {
   const ciInput = document.getElementById("ciInput");
   const chapaInput = document.getElementById("chapaInput");
   const fechaInput = document.getElementById("fechaInput");
+  const rememberInput = document.getElementById("rememberSessionInput");
 
   if (ciInput) ciInput.value = "";
   if (chapaInput) chapaInput.value = "";
   if (fechaInput) fechaInput.value = fechaHoyISO();
+  if (rememberInput) rememberInput.checked = true;
 
   setLoginMsg("Ingrese CI, chapa y fecha para consultar la ruta asignada.", false);
 }
