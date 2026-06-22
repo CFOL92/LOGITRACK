@@ -1,1 +1,266 @@
+/* LOGITRACK - ruta.css */
 
+/* --- FILTROS DE RUTA --- */
+
+.route-filters {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  scrollbar-width: none;
+}
+
+.route-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-chip {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  border-radius: 999px;
+  padding: 8px 10px;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+  min-width: max-content;
+}
+
+.filter-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+/* --- TARJETAS DE PARADA / CLIENTE --- */
+
+.stop-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px;
+  margin-bottom: 10px;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
+}
+
+.stop-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.stop-order {
+  min-width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: #e0f2fe;
+  color: #0369a1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 950;
+  font-size: 13px;
+}
+
+.stop-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.stop-name {
+  font-size: 13px;
+  font-weight: 950;
+  color: #0f172a;
+  line-height: 1.25;
+  text-transform: uppercase;
+  word-break: break-word;
+}
+
+.stop-meta {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.stop-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.stop-actions button,
+.stop-actions a {
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  border-radius: 10px;
+  padding: 11px 10px;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.link-gps {
+  background: #dcfce7;
+  color: #166534;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.link-gps:hover {
+  background: #bbf7d0;
+}
+
+/* --- ESTADOS VISUALES DE PARADA --- */
+
+.stop-card.estado-pendiente {
+  border-left: 5px solid var(--primary);
+}
+
+.stop-card.estado-entregado {
+  border-left: 5px solid var(--success);
+}
+
+.stop-card.estado-parcial {
+  border-left: 5px solid var(--warning);
+}
+
+.stop-card.estado-rechazado,
+.stop-card.estado-no-despachado {
+  border-left: 5px solid var(--danger);
+}
+
+/* --- CABECERA / RESUMEN DE RUTA FUTURO FASE 1.2 --- */
+
+.route-summary {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px;
+  margin-bottom: 10px;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
+}
+
+.route-summary-title {
+  font-size: 13px;
+  font-weight: 950;
+  color: #0f172a;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+
+.route-summary-meta {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* --- BUSCADOR FUTURO FASE 1.2 --- */
+
+.route-search-box {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px;
+  margin-bottom: 10px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.route-search-box input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 13px;
+  outline: none;
+}
+
+.route-search-box input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+
+/* --- ORDENAMIENTO FUTURO FASE 1.2 --- */
+
+.route-sort-box {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.route-sort-box select {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 11px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #334155;
+  background: #ffffff;
+  outline: none;
+}
+
+/* --- CONTADOR DE RESULTADOS --- */
+
+.route-count {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 900;
+  text-transform: uppercase;
+  margin: 8px 0 10px;
+}
+
+/* --- CIERRE DE RUTA --- */
+
+.cierre-warning {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  border-radius: 14px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+.cierre-ok {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  border-radius: 14px;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+
+/* --- UTILIDADES DE RUTA --- */
+
+.route-muted {
+  color: var(--muted);
+}
+
+.route-strong {
+  color: #0f172a;
+  font-weight: 950;
+}
+
+.route-danger {
+  color: var(--danger);
+  font-weight: 950;
+}
+
+.route-success {
+  color: var(--success);
+  font-weight: 950;
+}
+
+.route-warning {
+  color: var(--warning);
+  font-weight: 950;
+}
