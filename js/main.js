@@ -12,6 +12,8 @@
 import { APP_CONFIG } from "./config.js";
 import { state } from "./state.js";
 
+import { registrarUtils } from "./utils.js";
+
 import { registrarApiService, verificarConexionAPI } from "./api.js";
 
 import {
@@ -93,9 +95,16 @@ function inicializarAplicacion() {
     configurarVentanaGlobal();
     registrarModulos();
     inicializarMapa();
-    inicializarLogin();
     configurarEventosBase();
+    configurarErroresGlobales();
     verificarConexionInicial();
+
+    /*
+      Importante:
+      inicializarLogin() debe ejecutarse después de registrar módulos.
+      Ahí se restaura la sesión desde localStorage si existe.
+    */
+    inicializarLogin();
 
     console.info(`${APP_CONFIG.nombre} ${APP_CONFIG.version} inicializado correctamente.`);
 
@@ -126,6 +135,8 @@ function configurarVentanaGlobal() {
  * Registra todos los módulos.
  */
 function registrarModulos() {
+  registrarUtils();
+
   registrarApiService();
   registrarMapService();
   registrarGpsService();
@@ -155,7 +166,6 @@ function inicializarMapa() {
  */
 function configurarEventosBase() {
   configurarEnterLogin();
-  configurarErroresGlobales();
 }
 
 /**
