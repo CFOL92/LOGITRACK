@@ -1,1 +1,117 @@
+/* LOGITRACK - mapa.css */
 
+#map {
+  height: 100vh;
+  width: 100%;
+  background: #cbd5e1;
+}
+
+/* Marcadores personalizados Leaflet */
+.custom-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Etiquetas permanentes de cliente */
+.label-boca {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: #111827;
+  font-size: 10px;
+  font-weight: 900 !important;
+  white-space: nowrap;
+  text-shadow:
+    -1px -1px 0 #fff,
+     1px -1px 0 #fff,
+     1px  1px 0 #fff,
+    -1px  1px 0 #fff;
+}
+
+/* Control visual de etiquetas según zoom */
+.zoom-low .label-boca {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.zoom-high .label-boca {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Popup Leaflet */
+.leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  width: 300px !important;
+}
+
+.leaflet-popup-tip {
+  background: #ffffff;
+}
+
+/* Tarjeta interna del popup */
+.popup-card {
+  padding: 14px;
+  background: #ffffff;
+}
+
+.popup-title {
+  font-size: 14px;
+  font-weight: 900;
+  text-transform: uppercase;
+  line-height: 1.2;
+  margin-bottom: 4px;
+  color: #0f172a;
+}
+
+.popup-meta {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.popup-btn {
+  width: 100%;
+  display: block;
+  background: var(--primary);
+  color: #ffffff;
+  margin-top: 8px;
+  text-align: center;
+  text-decoration: none;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.popup-btn:hover {
+  background: var(--primary-dark);
+}
+
+/* Ajuste visual de controles Leaflet */
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.leaflet-control-zoom a {
+  border: none !important;
+  color: #0f172a !important;
+  font-weight: 900;
+}
+
+/* Ubicación actual del chofer */
+.leaflet-interactive {
+  outline: none;
+}
