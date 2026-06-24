@@ -15,7 +15,7 @@
 // - Para PARCIAL solicita cantidad entregada y motivo.
 // - Para RECHAZADO / NO DESPACHADO solicita motivo.
 // - Elimina prompts para gestión de productos.
-// - Mantiene compatibilidad con acciones existentes de factura.
+// - Centraliza la actualización en productoActions.js usando window.actualizarProductoConDatos(...).
 // - Respeta ruta histórica pendiente editable.
 // - Bloquea acciones si soloLectura, rutaCerrada o HISTORICO_CERRADO.
 
@@ -28,9 +28,6 @@ import {
   buscarFactura
 } from "../services/routeService.js?v=1.7";
 
-import { apiGet } from "../api.js?v=1.7";
-import { obtenerGPS } from "../services/gpsService.js?v=1.7";
-
 import {
   cleanEstado,
   escapeHtml,
@@ -39,8 +36,6 @@ import {
   formatoGs,
   toNumber
 } from "../utils.js?v=1.7";
-
-let accionProductoPantallaEnCurso = false;
 
 const ESTADOS_PRODUCTO = {
   ENTREGADO_TOTAL: "ENTREGADO_TOTAL",
@@ -628,6 +623,7 @@ function actualizarFormularioProducto(card, estado) {
 
 /**
  * Guarda la gestión del producto sin usar prompts.
+ * La actualización real se centraliza en productoActions.js.
  */
 export async function guardarGestionProducto(productoFacturaId) {
   if (!validarContextoGestionProducto()) return;
@@ -656,6 +652,13 @@ export async function guardarGestionProducto(productoFacturaId) {
       toastEntrega("Ingrese una cantidad entregada válida.", "error");
       return;
     }
+
+    const planificado = toNumber(card.dataset.planificado || 0);
+
+    if (planificado > 0 && toNumber(cantidadEntregada) >= planificado) {
+      toastEntrega("Para entrega parcial, la cantidad debe ser menor a la planificada.", "error");
+      return;
+    }
   }
 
   if (
@@ -671,73 +674,17 @@ export async function guardarGestionProducto(productoFacturaId) {
     }
   }
 
-  await ejecutarActualizacionProducto({
+  if (typeof window.actualizarProductoConDatos !== "function") {
+    toastEntrega("No está registrada la función actualizarProductoConDatos. Verifique productoActions.js.", "error");
+    return;
+  }
+
+  await window.actualizarProductoConDatos({
     productoFacturaId,
     estadoProducto,
     cantidadEntregada,
     motivo
   });
-}
-
-/**
- * Ejecuta actualización de producto contra Apps Script.
- */
-async function ejecutarActualizacionProducto({
-  productoFacturaId,
-  estadoProducto,
-  cantidadEntregada,
-  motivo
-}) {
-  if (accionProductoPantallaEnCurso) {
-    toastEntrega("Ya hay una gestión de producto en proceso. Aguarde...", "error");
-    return;
-  }
-
-  accionProductoPantallaEnCurso = true;
-
-  try {
-    toastEntrega("Capturando ubicación...");
-
-    const gps = await obtenerGPSSeguro();
-
-    const data = await apiGet({
-      mode: "actualizarProducto",
-      ci: state.ci,
-      chapa: state.chapa,
-      fecha: state.fecha,
-      productoFacturaId,
-      estadoProducto,
-      cantidadEntregada: cantidadEntregada || "",
-      motivo: motivo || "",
-      lat: gps.lat,
-      lng: gps.lng,
-      precision: gps.precision
-    });
-
-    if (!data.ok) {
-      toastEntrega(data.mensaje || "No se pudo actualizar el producto.", "error");
-      return;
-    }
-
-    state.facturasCache = {};
-    state.productosCache = {};
-
-    toastEntrega(data.mensaje || "Producto actualizado.", "ok");
-
-    if (typeof window.refrescarDespuesDeGestion === "function") {
-      await window.refrescarDespuesDeGestion();
-      return;
-    }
-
-    await refrescarParadaActiva();
-
-  } catch (error) {
-    console.error("LOGITRACK guardarGestionProducto error:", error);
-    toastEntrega("Error al actualizar producto:\n" + (error.message || error), "error");
-
-  } finally {
-    accionProductoPantallaEnCurso = false;
-  }
 }
 
 /**
@@ -1034,19 +981,6 @@ function obtenerMotivoProducto(card) {
   }
 
   return motivoBase;
-}
-
-/**
- * Obtiene GPS de forma controlada.
- */
-async function obtenerGPSSeguro() {
-  const gps = await obtenerGPS();
-
-  return {
-    lat: gps?.lat ?? "",
-    lng: gps?.lng ?? "",
-    precision: gps?.precision ?? ""
-  };
 }
 
 /**
