@@ -5,6 +5,14 @@
 // - Cargar productos de una factura
 // - Renderizar panel lateral de gestión
 // - Mantener compatibilidad con onclick globales
+//
+// Versión 1.6 - Fase 1.2-A:
+// - Muestra aviso visual cuando la ruta es histórica.
+// - Deshabilita botones operativos si soloLectura=true.
+// - Deshabilita botones operativos si rutaCerrada=true.
+// - Deshabilita botones operativos si modoConsulta=HISTORICO_CERRADO.
+// - Permite consultar facturas/productos aunque esté bloqueada.
+// - Mantiene HISTORICO_PENDIENTE editable si soloLectura=false.
 
 import { state } from "../state.js";
 import {
@@ -12,7 +20,7 @@ import {
   cargarFacturasParada,
   cargarProductosFactura,
   buscarFactura
-} from "../services/routeService.js";
+} from "../services/routeService.js?v=1.6";
 
 import {
   cleanEstado,
@@ -21,7 +29,7 @@ import {
   formatoNum,
   formatoGs,
   toNumber
-} from "../utils.js";
+} from "../utils.js?v=1.6";
 
 /**
  * Registra funciones globales para mantener compatibilidad
@@ -38,6 +46,9 @@ export function registrarEntregaView() {
   window.abrirPanel = abrirPanel;
   window.cerrarPanel = cerrarPanel;
   window.setSideBody = setSideBody;
+
+  window.rutaBloqueadaEntrega = rutaBloqueadaParaGestion;
+  window.renderAvisoModoRuta = renderAvisoModoRuta;
 }
 
 /**
@@ -81,7 +92,8 @@ export async function abrirParada(paradaId, codBoca, rutaId) {
     renderFacturas(result.data || []);
 
   } catch (error) {
-    setSideBody(renderPanelMensaje("Error al cargar facturas:\n" + error.message, true));
+    console.error("LOGITRACK abrirParada error:", error);
+    setSideBody(renderPanelMensaje("Error al cargar facturas:\n" + (error.message || error), true));
   }
 }
 
@@ -98,6 +110,7 @@ export function renderFacturas(facturas) {
 
   if (!facturas || !facturas.length) {
     setSideBody(`
+      ${renderAvisoModoRuta()}
       ${renderResumenParada(parada)}
       ${renderPanelMensaje("No hay facturas para esta parada.")}
     `);
@@ -105,6 +118,7 @@ export function renderFacturas(facturas) {
   }
 
   const html = `
+    ${renderAvisoModoRuta()}
     ${renderResumenParada(parada)}
 
     <div class="section-title">Facturas de la parada</div>
@@ -120,6 +134,9 @@ export function renderFacturas(facturas) {
  */
 function renderFacturaCard(f) {
   const estado = cleanEstado(f.EstadoFactura || "PENDIENTE");
+  const bloqueado = rutaBloqueadaParaGestion();
+  const disabledAttr = bloqueado ? "disabled" : "";
+  const disabledTitle = bloqueado ? `title="${escapeAttr(mensajeRutaBloqueada())}"` : "";
 
   return `
     <div class="card">
@@ -139,7 +156,12 @@ function renderFacturaCard(f) {
       </div>
 
       <div class="btn-row">
-        <button class="btn-success" onclick="window.confirmarFactura('${escapeAttr(f.FacturaID || "")}')">
+        <button
+          class="btn-success"
+          ${disabledAttr}
+          ${disabledTitle}
+          onclick="window.confirmarFactura('${escapeAttr(f.FacturaID || "")}')"
+        >
           Confirmar completa
         </button>
 
@@ -149,11 +171,21 @@ function renderFacturaCard(f) {
       </div>
 
       <div class="btn-row">
-        <button class="btn-danger" onclick="window.rechazarFactura('${escapeAttr(f.FacturaID || "")}')">
+        <button
+          class="btn-danger"
+          ${disabledAttr}
+          ${disabledTitle}
+          onclick="window.rechazarFactura('${escapeAttr(f.FacturaID || "")}')"
+        >
           Rechazar total
         </button>
 
-        <button class="btn-neutral" onclick="window.noDespachadoFactura('${escapeAttr(f.FacturaID || "")}')">
+        <button
+          class="btn-neutral"
+          ${disabledAttr}
+          ${disabledTitle}
+          onclick="window.noDespachadoFactura('${escapeAttr(f.FacturaID || "")}')"
+        >
           No despachada
         </button>
       </div>
@@ -187,7 +219,8 @@ export async function verProductos(facturaId) {
     renderProductos(id, result.data || []);
 
   } catch (error) {
-    setSideBody(renderPanelMensaje("Error al cargar productos:\n" + error.message, true));
+    console.error("LOGITRACK verProductos error:", error);
+    setSideBody(renderPanelMensaje("Error al cargar productos:\n" + (error.message || error), true));
   }
 }
 
@@ -197,6 +230,7 @@ export async function verProductos(facturaId) {
 export function renderProductos(facturaId, productos) {
   if (!productos || !productos.length) {
     setSideBody(`
+      ${renderAvisoModoRuta()}
       ${renderBotonVolverFacturas()}
       ${renderPanelMensaje("No hay productos para esta factura.")}
     `);
@@ -207,6 +241,7 @@ export function renderProductos(facturaId, productos) {
   const titulo = factura ? `Factura ${factura.NumFactura || ""}` : "Productos";
 
   const html = `
+    ${renderAvisoModoRuta()}
     ${renderBotonVolverFacturas()}
 
     <div class="section-title">${escapeHtml(titulo)}</div>
@@ -290,6 +325,9 @@ function renderResumenFactura(factura) {
  */
 function renderProductoCard(p) {
   const estado = cleanEstado(p.EstadoProducto || "PENDIENTE");
+  const bloqueado = rutaBloqueadaParaGestion();
+  const disabledAttr = bloqueado ? "disabled" : "";
+  const disabledTitle = bloqueado ? `title="${escapeAttr(mensajeRutaBloqueada())}"` : "";
 
   return `
     <div class="card">
@@ -319,19 +357,39 @@ function renderProductoCard(p) {
       </div>
 
       <div class="btn-row-4">
-        <button class="btn-success" onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'ENTREGADO_TOTAL')">
+        <button
+          class="btn-success"
+          ${disabledAttr}
+          ${disabledTitle}
+          onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'ENTREGADO_TOTAL')"
+        >
           Total
         </button>
 
-        <button class="btn-warning" onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'ENTREGADO_PARCIAL')">
+        <button
+          class="btn-warning"
+          ${disabledAttr}
+          ${disabledTitle}
+          onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'ENTREGADO_PARCIAL')"
+        >
           Parcial
         </button>
 
-        <button class="btn-danger" onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'RECHAZADO_TOTAL')">
+        <button
+          class="btn-danger"
+          ${disabledAttr}
+          ${disabledTitle}
+          onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'RECHAZADO_TOTAL')"
+        >
           Rechazo
         </button>
 
-        <button class="btn-neutral" onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'NO_DESPACHADO')">
+        <button
+          class="btn-neutral"
+          ${disabledAttr}
+          ${disabledTitle}
+          onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'NO_DESPACHADO')"
+        >
           N/D
         </button>
       </div>
@@ -376,7 +434,8 @@ export async function volverAFacturas() {
     renderFacturas(result.data || []);
 
   } catch (error) {
-    setSideBody(renderPanelMensaje("Error al volver a facturas:\n" + error.message, true));
+    console.error("LOGITRACK volverAFacturas error:", error);
+    setSideBody(renderPanelMensaje("Error al volver a facturas:\n" + (error.message || error), true));
   }
 }
 
@@ -462,6 +521,65 @@ export function setSideBody(html) {
   }
 
   sideBody.innerHTML = html;
+}
+
+/**
+ * Indica si la ruta debe bloquear botones operativos.
+ */
+function rutaBloqueadaParaGestion() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  return Boolean(
+    state.soloLectura === true ||
+    state.rutaCerrada === true ||
+    modo === "HISTORICO_CERRADO"
+  );
+}
+
+/**
+ * Mensaje operativo cuando la ruta está bloqueada.
+ */
+function mensajeRutaBloqueada() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  if (modo === "HISTORICO_CERRADO") {
+    return "Ruta histórica cerrada. Solo consulta.";
+  }
+
+  if (state.rutaCerrada) {
+    return "Ruta cerrada. No permite modificaciones.";
+  }
+
+  if (state.soloLectura) {
+    return "Ruta en solo lectura. No permite modificaciones.";
+  }
+
+  return "Ruta bloqueada para gestión.";
+}
+
+/**
+ * Aviso visible del modo de ruta.
+ */
+function renderAvisoModoRuta() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  if (modo === "HISTORICO_PENDIENTE" && !rutaBloqueadaParaGestion()) {
+    return `
+      <div class="panel-empty" style="margin-bottom:10px;border-left:4px solid #f59e0b;">
+        ⚠️ Ruta histórica pendiente. Se permite continuar la gestión porque no está cerrada.
+      </div>
+    `;
+  }
+
+  if (modo === "HISTORICO_CERRADO" || rutaBloqueadaParaGestion()) {
+    return `
+      <div class="cierre-warning" style="margin-bottom:10px;">
+        🔒 ${escapeHtml(mensajeRutaBloqueada())}
+      </div>
+    `;
+  }
+
+  return "";
 }
 
 /**
