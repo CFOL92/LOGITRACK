@@ -5,6 +5,8 @@
 // - Fuerza recarga de módulos principales con query ?v=1.7.
 // - Mantiene state/config/utils base sin query para evitar duplicar estado interno.
 // - Integra blindaje visual y lógico de Fase 1.2-A.
+// - Corrige visualización del mapa: solo se muestra en vista Mapa.
+// - Evita que el mapa quede visible detrás del Inicio.
 // - Expone diagnóstico global para consola.
 // - Mejora control de conexión online/offline.
 
@@ -96,6 +98,7 @@ function inicializarAplicacion() {
     configurarVentanaGlobal();
     registrarModulos();
     inicializarMapa();
+    ocultarMapaVisual();
     configurarEventosBase();
     configurarErroresGlobales();
     configurarEventosConexion();
@@ -136,6 +139,8 @@ function configurarVentanaGlobal() {
   window.refrescarDespuesDeGestion = refrescarDespuesDeGestion;
   window.cerrarTodoPanel = cerrarTodoPanel;
   window.refrescarMapaVisual = refrescarMapaVisual;
+  window.mostrarMapaVisual = mostrarMapaVisual;
+  window.ocultarMapaVisual = ocultarMapaVisual;
   window.toast = toastMain;
 
   window.diagnosticoLogitrack = diagnosticoLogitrack;
@@ -168,7 +173,22 @@ function registrarModulos() {
  * Inicializa Leaflet.
  */
 function inicializarMapa() {
-  initMap();
+  try {
+    initMap();
+  } catch (error) {
+    const mensaje = String(error?.message || error || "");
+
+    /*
+      Este error aparece cuando Leaflet ya inicializó #map.
+      No debe bloquear el resto de la app.
+    */
+    if (mensaje.includes("already initialized")) {
+      console.warn("Mapa ya inicializado. Se continúa sin reinicializar Leaflet.");
+      return;
+    }
+
+    throw error;
+  }
 }
 
 /**
@@ -288,10 +308,18 @@ export function cambiarVista(vista) {
   limpiarNavegacion();
 
   if (vistaNormalizada === "mapa") {
+    mostrarMapaVisual();
     activarVistaMapa();
+
+    setTimeout(() => {
+      refrescarTamanioMapa();
+      dibujarMapa();
+    }, 150);
+
     return;
   }
 
+  ocultarMapaVisual();
   activarAppShell();
   ocultarTopPanel();
 
@@ -358,6 +386,32 @@ function activarAppShell() {
 }
 
 /**
+ * Muestra el mapa únicamente para vista Mapa.
+ */
+function mostrarMapaVisual() {
+  document.body.classList.add("mapa-activo");
+
+  const mapEl = document.getElementById("map");
+
+  if (mapEl) {
+    mapEl.style.display = "block";
+  }
+}
+
+/**
+ * Oculta el mapa para Inicio, Ruta y Cierre.
+ */
+function ocultarMapaVisual() {
+  document.body.classList.remove("mapa-activo");
+
+  const mapEl = document.getElementById("map");
+
+  if (mapEl) {
+    mapEl.style.display = "none";
+  }
+}
+
+/**
  * Render general después de cargar o refrescar datos.
  */
 export function renderApp() {
@@ -365,7 +419,22 @@ export function renderApp() {
   actualizarPanelChofer();
   actualizarPanelMapa();
 
-  dibujarMapa();
+  /*
+    Importante:
+    No dibujamos el mapa en cada render general.
+    Solo se dibuja cuando el usuario entra a la vista Mapa.
+    Esto evita que el mapa quede visible en Inicio.
+  */
+  if (state.vistaActiva === "mapa") {
+    mostrarMapaVisual();
+
+    setTimeout(() => {
+      refrescarTamanioMapa();
+      dibujarMapa();
+    }, 150);
+  } else {
+    ocultarMapaVisual();
+  }
 
   renderInicio();
   renderRuta();
@@ -425,14 +494,20 @@ export function cerrarTodoPanel() {
  * Redibuja el mapa cuando vuelve al frente.
  */
 export function refrescarMapaVisual() {
-  refrescarTamanioMapa();
-  dibujarMapa();
+  mostrarMapaVisual();
+
+  setTimeout(() => {
+    refrescarTamanioMapa();
+    dibujarMapa();
+  }, 150);
 }
 
 /**
  * Diagnóstico rápido desde consola.
  */
 function diagnosticoLogitrack() {
+  const mapEl = document.getElementById("map");
+
   const data = {
     build: FRONTEND_BUILD,
     appVersion: APP_CONFIG.version,
@@ -456,7 +531,8 @@ function diagnosticoLogitrack() {
       : null,
     facturaActiva: state.facturaActiva || null,
     apiUrl: window.LOGITRACK_SHEET_API || null,
-    lastApiUrl: window.LOGITRACK_LAST_API_URL || null
+    lastApiUrl: window.LOGITRACK_LAST_API_URL || null,
+    mapaDisplay: mapEl ? mapEl.style.display || getComputedStyle(mapEl).display : "SIN_MAPA"
   };
 
   console.table(data);
