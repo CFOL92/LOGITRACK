@@ -7,6 +7,8 @@
 // - Integra blindaje visual y lógico de Fase 1.2-A.
 // - Corrige visualización del mapa: solo se muestra en vista Mapa.
 // - Evita que el mapa quede visible detrás del Inicio.
+// - Evita abrir Mapa si no hay ruta cargada.
+// - Evita doble redibujado de Leaflet.
 // - Expone diagnóstico global para consola.
 // - Mejora control de conexión online/offline.
 
@@ -303,22 +305,37 @@ async function verificarConexionInicial() {
 export function cambiarVista(vista) {
   const vistaNormalizada = String(vista || "inicio").trim().toLowerCase();
 
-  state.vistaActiva = vistaNormalizada;
-
-  limpiarNavegacion();
-
   if (vistaNormalizada === "mapa") {
+    if (!hayRutaValidaParaMapa()) {
+      ocultarMapaVisual();
+      activarAppShell();
+      ocultarTopPanel();
+
+      state.vistaActiva = "inicio";
+      limpiarNavegacion();
+      activarVista("viewInicio", "navInicio");
+      renderInicio();
+
+      toastMain("No hay una ruta cargada para mostrar en el mapa.", "error");
+      return;
+    }
+
+    state.vistaActiva = "mapa";
+    limpiarNavegacion();
+
     mostrarMapaVisual();
     activarVistaMapa();
 
-    setTimeout(() => {
-      refrescarTamanioMapa();
-      dibujarMapa();
-    }, 150);
-
+    /*
+      activarVistaMapa() ya refresca y dibuja el mapa.
+      No repetimos dibujarMapa() acá para evitar doble render.
+    */
     return;
   }
 
+  state.vistaActiva = vistaNormalizada;
+
+  limpiarNavegacion();
   ocultarMapaVisual();
   activarAppShell();
   ocultarTopPanel();
@@ -343,6 +360,19 @@ export function cambiarVista(vista) {
 
   activarVista("viewInicio", "navInicio");
   renderInicio();
+}
+
+/**
+ * Valida si se puede abrir el mapa.
+ */
+function hayRutaValidaParaMapa() {
+  return Boolean(
+    state.ci &&
+    state.chapa &&
+    state.fecha &&
+    Array.isArray(state.paradas) &&
+    state.paradas.length
+  );
 }
 
 /**
@@ -425,7 +455,7 @@ export function renderApp() {
     Solo se dibuja cuando el usuario entra a la vista Mapa.
     Esto evita que el mapa quede visible en Inicio.
   */
-  if (state.vistaActiva === "mapa") {
+  if (state.vistaActiva === "mapa" && hayRutaValidaParaMapa()) {
     mostrarMapaVisual();
 
     setTimeout(() => {
@@ -462,6 +492,12 @@ export async function refrescarDespuesDeGestion() {
     await cargarRutaChofer(false);
 
     renderApp();
+
+    if (vistaAnterior === "mapa" && !hayRutaValidaParaMapa()) {
+      cambiarVista("inicio");
+      return;
+    }
+
     cambiarVista(vistaAnterior);
 
     if (facturaAnterior) {
@@ -494,6 +530,12 @@ export function cerrarTodoPanel() {
  * Redibuja el mapa cuando vuelve al frente.
  */
 export function refrescarMapaVisual() {
+  if (!hayRutaValidaParaMapa()) {
+    ocultarMapaVisual();
+    toastMain("No hay una ruta cargada para mostrar en el mapa.", "error");
+    return;
+  }
+
   mostrarMapaVisual();
 
   setTimeout(() => {
@@ -522,6 +564,7 @@ function diagnosticoLogitrack() {
     codigoRuta: state.codigoRuta || "",
     fuenteDatos: state.fuenteDatos || "",
     totalParadas: Array.isArray(state.paradas) ? state.paradas.length : 0,
+    hayRutaValidaParaMapa: hayRutaValidaParaMapa(),
     paradaActiva: state.paradaActiva
       ? {
           ParadaID: state.paradaActiva.ParadaID || "",
