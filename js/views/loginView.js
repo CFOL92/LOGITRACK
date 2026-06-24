@@ -10,11 +10,15 @@
 // - Muestra mensajes diferenciados para hoy, histórico y fecha futura
 // - Oculta login y habilita la app
 // - Actualiza paneles iniciales
+//
+// Versión 1.6:
+// - Fuerza routeService.js, api.js, mapService.js y utils.js con ?v=1.6
+// - Evita que el navegador móvil use módulos viejos desde caché
 
 import { state } from "../state.js";
-import { apiGet } from "../api.js";
-import { cargarRutaDesdeAPI } from "../services/routeService.js";
-import { dibujarMapa } from "../services/mapService.js";
+import { apiGet } from "../api.js?v=1.6";
+import { cargarRutaDesdeAPI } from "../services/routeService.js?v=1.6";
+import { dibujarMapa } from "../services/mapService.js?v=1.6";
 import {
   escapeHtml,
   formatoNum,
@@ -26,7 +30,7 @@ import {
   storageGet,
   storageSet,
   storageRemove
-} from "../utils.js";
+} from "../utils.js?v=1.6";
 
 const SESSION_KEY = "LOGITRACK_SESSION_V1";
 
@@ -172,6 +176,8 @@ export async function cargarRutaChofer(showLoginErrors = true) {
       fecha
     });
 
+    console.log("LOGITRACK cargarRutaChofer result:", result);
+
     if (!result.ok) {
       const mensaje = construirMensajeSinRuta(result, fecha);
 
@@ -186,14 +192,14 @@ export async function cargarRutaChofer(showLoginErrors = true) {
 
     /*
       Si cargó correctamente, actualizamos sesión con la fecha realmente consultada.
-      Si fue una consulta histórica manual, se guarda esa fecha, pero al recargar mañana
+      Si fue una consulta histórica manual, se guarda esa fecha, pero al recargar
       restaurarSesionActiva() volverá a consultar hoy automáticamente.
     */
     if (mantenerSesion) {
       guardarSesionActiva({
         ci,
         chapa,
-        fecha,
+        fecha: result.fechaRuta || fecha,
         mantenerSesion: true
       });
     }
@@ -208,6 +214,8 @@ export async function cargarRutaChofer(showLoginErrors = true) {
 
   } catch (error) {
     const mensajeError = "Error al conectar con LOGITRACK:\n" + error.message;
+
+    console.error("LOGITRACK error cargarRutaChofer:", error);
 
     setLoginMsg(mensajeError, true);
 
