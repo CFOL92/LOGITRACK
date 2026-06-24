@@ -5,17 +5,21 @@
 // - Rechazado total
 // - No despachado
 //
-// Versión 1.6 - Fase 1.2-A:
+// Versión 1.7 - Fase 1.2-B:
+// - Mantiene compatibilidad con window.actualizarProducto(...).
+// - Agrega window.actualizarProductoConDatos(...) para gestión desde pantalla.
+// - Permite actualizar productos sin prompt cuando la vista ya capturó cantidad/motivo.
 // - Bloquea acciones si la ruta está en soloLectura.
 // - Bloquea acciones si la ruta está cerrada.
 // - Bloquea acciones si modoConsulta = HISTORICO_CERRADO.
 // - Mantiene HISTORICO_PENDIENTE editable si soloLectura=false.
 // - Evita doble ejecución por doble clic.
 // - Valida cantidad entregada para entrega parcial.
+// - Limpia caches después de actualizar.
 
 import { state } from "../state.js";
-import { apiGet } from "../api.js?v=1.6";
-import { obtenerGPS } from "../services/gpsService.js";
+import { apiGet } from "../api.js?v=1.7";
+import { obtenerGPS } from "../services/gpsService.js?v=1.7";
 
 let accionProductoEnCurso = false;
 
@@ -32,12 +36,16 @@ const ESTADOS_PRODUCTO_VALIDOS = [
  */
 export function registrarProductoActions() {
   window.actualizarProducto = actualizarProducto;
+  window.actualizarProductoConDatos = actualizarProductoConDatos;
   window.validarContextoProducto = validarContextoRuta;
   window.rutaBloqueadaProducto = rutaBloqueadaParaProducto;
 }
 
 /**
- * Actualiza el estado de un producto de factura.
+ * MODO COMPATIBLE ANTERIOR.
+ *
+ * Actualiza el estado de un producto usando confirm/prompt.
+ * Se mantiene para botones antiguos o pruebas rápidas.
  *
  * Estados esperados:
  * - ENTREGADO_TOTAL
@@ -48,14 +56,15 @@ export function registrarProductoActions() {
 export async function actualizarProducto(productoFacturaId, estado) {
   if (!validarContextoRuta()) return;
 
-  if (!productoFacturaId) {
+  const productoId = normalizarTexto(productoFacturaId);
+  const estadoNormalizado = normalizarEstadoProducto(estado);
+
+  if (!productoId) {
     toastProducto("Producto inválido.", "error");
     return;
   }
 
-  const estadoNormalizado = String(estado || "").trim().toUpperCase();
-
-  if (!estadoNormalizado || !ESTADOS_PRODUCTO_VALIDOS.includes(estadoNormalizado)) {
+  if (!estadoNormalizado) {
     toastProducto("Estado de producto inválido.", "error");
     return;
   }
@@ -84,7 +93,7 @@ export async function actualizarProducto(productoFacturaId, estado) {
 
     if (motivo === null) return;
 
-    motivo = String(motivo || "").trim();
+    motivo = normalizarTexto(motivo);
 
     if (!motivo) {
       toastProducto("Debe ingresar motivo.", "error");
@@ -97,7 +106,7 @@ export async function actualizarProducto(productoFacturaId, estado) {
 
     if (motivo === null) return;
 
-    motivo = String(motivo || "").trim();
+    motivo = normalizarTexto(motivo);
 
     if (!motivo) {
       toastProducto("Debe ingresar motivo.", "error");
@@ -110,7 +119,7 @@ export async function actualizarProducto(productoFacturaId, estado) {
 
     if (motivo === null) return;
 
-    motivo = String(motivo || "").trim();
+    motivo = normalizarTexto(motivo);
 
     if (!motivo) {
       toastProducto("Debe ingresar motivo.", "error");
@@ -119,10 +128,71 @@ export async function actualizarProducto(productoFacturaId, estado) {
   }
 
   await ejecutarAccionProducto({
-    productoFacturaId,
+    productoFacturaId: productoId,
     estadoProducto: estadoNormalizado,
     cantidadEntregada,
     motivo
+  });
+}
+
+/**
+ * MODO NUEVO PARA LA PANTALLA DE GESTIÓN.
+ *
+ * Permite actualizar sin prompt, usando datos capturados en entregaView.js.
+ *
+ * Uso esperado:
+ * window.actualizarProductoConDatos({
+ *   productoFacturaId: "ABC123",
+ *   estadoProducto: "ENTREGADO_PARCIAL",
+ *   cantidadEntregada: "5",
+ *   motivo: "Cliente no recibe"
+ * })
+ */
+export async function actualizarProductoConDatos({
+  productoFacturaId,
+  estadoProducto,
+  cantidadEntregada = "",
+  motivo = ""
+} = {}) {
+  if (!validarContextoRuta()) return;
+
+  const productoId = normalizarTexto(productoFacturaId);
+  const estadoNormalizado = normalizarEstadoProducto(estadoProducto);
+  const cantidadNormalizada = normalizarCantidadSiAplica(cantidadEntregada, estadoNormalizado);
+  const motivoNormalizado = normalizarTexto(motivo);
+
+  if (!productoId) {
+    toastProducto("Producto inválido.", "error");
+    return {
+      ok: false,
+      mensaje: "Producto inválido."
+    };
+  }
+
+  if (!estadoNormalizado) {
+    toastProducto("Estado de producto inválido.", "error");
+    return {
+      ok: false,
+      mensaje: "Estado de producto inválido."
+    };
+  }
+
+  const validacion = validarDatosProducto({
+    estadoProducto: estadoNormalizado,
+    cantidadEntregada: cantidadNormalizada,
+    motivo: motivoNormalizado
+  });
+
+  if (!validacion.ok) {
+    toastProducto(validacion.mensaje, "error");
+    return validacion;
+  }
+
+  return await ejecutarAccionProducto({
+    productoFacturaId: productoId,
+    estadoProducto: estadoNormalizado,
+    cantidadEntregada: cantidadNormalizada,
+    motivo: motivoNormalizado
   });
 }
 
@@ -135,11 +205,19 @@ async function ejecutarAccionProducto({
   cantidadEntregada,
   motivo
 }) {
-  if (!validarContextoRuta()) return;
+  if (!validarContextoRuta()) {
+    return {
+      ok: false,
+      mensaje: "Ruta inválida."
+    };
+  }
 
   if (accionProductoEnCurso) {
     toastProducto("Ya hay una acción de producto en proceso. Aguarde...", "error");
-    return;
+    return {
+      ok: false,
+      mensaje: "Ya hay una acción de producto en proceso."
+    };
   }
 
   accionProductoEnCurso = true;
@@ -165,7 +243,7 @@ async function ejecutarAccionProducto({
 
     if (!data.ok) {
       toastProducto(data.mensaje || "No se pudo actualizar el producto.", "error");
-      return;
+      return data;
     }
 
     limpiarCacheDespuesDeAccion();
@@ -174,9 +252,19 @@ async function ejecutarAccionProducto({
 
     await refrescarDespuesDeAccionProducto();
 
+    return data;
+
   } catch (error) {
     console.error("LOGITRACK productoActions error:", error);
-    toastProducto("Error al actualizar producto:\n" + (error.message || error), "error");
+
+    const mensaje = "Error al actualizar producto:\n" + (error.message || error);
+
+    toastProducto(mensaje, "error");
+
+    return {
+      ok: false,
+      mensaje
+    };
 
   } finally {
     accionProductoEnCurso = false;
@@ -242,6 +330,76 @@ function mensajeRutaBloqueada() {
 }
 
 /**
+ * Valida datos según el estado del producto.
+ */
+function validarDatosProducto({
+  estadoProducto,
+  cantidadEntregada,
+  motivo
+}) {
+  if (estadoProducto === "ENTREGADO_TOTAL") {
+    return {
+      ok: true,
+      mensaje: "OK"
+    };
+  }
+
+  if (estadoProducto === "ENTREGADO_PARCIAL") {
+    if (!cantidadEntregada) {
+      return {
+        ok: false,
+        mensaje: "Debe ingresar una cantidad entregada válida."
+      };
+    }
+
+    if (!motivo) {
+      return {
+        ok: false,
+        mensaje: "Debe ingresar motivo de entrega parcial."
+      };
+    }
+
+    return {
+      ok: true,
+      mensaje: "OK"
+    };
+  }
+
+  if (estadoProducto === "RECHAZADO_TOTAL") {
+    if (!motivo) {
+      return {
+        ok: false,
+        mensaje: "Debe ingresar motivo del rechazo."
+      };
+    }
+
+    return {
+      ok: true,
+      mensaje: "OK"
+    };
+  }
+
+  if (estadoProducto === "NO_DESPACHADO") {
+    if (!motivo) {
+      return {
+        ok: false,
+        mensaje: "Debe ingresar motivo de no despachado."
+      };
+    }
+
+    return {
+      ok: true,
+      mensaje: "OK"
+    };
+  }
+
+  return {
+    ok: false,
+    mensaje: "Estado de producto inválido."
+  };
+}
+
+/**
  * Obtiene GPS de forma controlada.
  */
 async function obtenerGPSSeguro() {
@@ -252,6 +410,26 @@ async function obtenerGPSSeguro() {
     lng: gps?.lng ?? "",
     precision: gps?.precision ?? ""
   };
+}
+
+/**
+ * Normaliza estado de producto.
+ */
+function normalizarEstadoProducto(value) {
+  const estado = String(value || "").trim().toUpperCase();
+
+  if (!ESTADOS_PRODUCTO_VALIDOS.includes(estado)) {
+    return "";
+  }
+
+  return estado;
+}
+
+/**
+ * Normaliza textos.
+ */
+function normalizarTexto(value) {
+  return String(value || "").trim();
 }
 
 /**
@@ -272,6 +450,17 @@ function normalizarCantidad(value) {
   }
 
   return String(numero);
+}
+
+/**
+ * Solo exige cantidad para entrega parcial.
+ */
+function normalizarCantidadSiAplica(cantidadEntregada, estadoProducto) {
+  if (estadoProducto !== "ENTREGADO_PARCIAL") {
+    return "";
+  }
+
+  return normalizarCantidad(cantidadEntregada);
 }
 
 /**
@@ -302,7 +491,6 @@ async function refrescarDespuesDeAccionProducto() {
 
 /**
  * Toast local del módulo.
- * Más adelante se puede mover a utils.js para reutilizarlo.
  */
 function toastProducto(msg, type) {
   const el = document.getElementById("toast");
