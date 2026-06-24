@@ -6,19 +6,33 @@
 // - Crear popup de parada
 // - Limpiar mapa
 // - Centrar ruta
+//
+// Versión 1.7:
+// - Evita error "Map container is already initialized".
+// - Inicializa Leaflet una sola vez.
+// - Oculta el mapa por defecto.
+// - Muestra el mapa solo en vista Mapa.
+// - Mantiene compatibilidad con centrarMapaEnRuta.
+// - Agrega nueva función centrarMapaRuta usada por mapaView.js.
+// - Refresca tamaño de Leaflet sin reinicializar el mapa.
 
 import { state } from "../state.js";
+
 import {
   cleanEstado,
   toNumber,
   escapeHtml,
   escapeAttr,
   formatoNum
-} from "../utils.js";
-import { setGpsMap } from "./gpsService.js";
+} from "../utils.js?v=1.7";
+
+import { setGpsMap } from "./gpsService.js?v=1.7";
 
 let map = null;
 let layerGroup = null;
+
+const DEFAULT_CENTER = [-25.30, -57.60];
+const DEFAULT_ZOOM = 11;
 
 /**
  * Registra funciones globales para mantener compatibilidad
@@ -28,6 +42,11 @@ export function registrarMapService() {
   window.dibujarMapa = dibujarMapa;
   window.limpiarMapa = limpiarMapa;
   window.centrarMapaEnRuta = centrarMapaEnRuta;
+  window.centrarMapaRuta = centrarMapaRuta;
+  window.refrescarTamanioMapa = refrescarTamanioMapa;
+  window.mostrarMapa = mostrarMapa;
+  window.ocultarMapa = ocultarMapa;
+  window.getMap = getMap;
 }
 
 /**
@@ -35,38 +54,70 @@ export function registrarMapService() {
  * Debe ejecutarse una sola vez desde main.js.
  */
 export function initMap() {
-  if (map) return map;
+  if (map && layerGroup) {
+    return map;
+  }
 
   if (!window.L) {
     throw new Error("Leaflet no está cargado. Verifica el script de Leaflet en index.html.");
   }
 
-  const mapElement = document.getElementById("map");
+  let mapElement = document.getElementById("map");
 
   if (!mapElement) {
     throw new Error("No existe el contenedor #map en index.html.");
   }
 
-  map = window.L.map("map", {
-    zoomControl: false
-  }).setView([-25.30, -57.60], 11);
+  /*
+    Leaflet marca el contenedor con _leaflet_id.
+    Si por caché, recarga parcial o doble inicialización el contenedor ya quedó marcado,
+    lo clonamos para limpiar la referencia interna y evitar:
+    "Map container is already initialized".
+  */
+  if (mapElement._leaflet_id && !map) {
+    const cleanMapElement = mapElement.cloneNode(false);
+    mapElement.parentNode.replaceChild(cleanMapElement, mapElement);
+    mapElement = cleanMapElement;
+  }
 
-  window.L.control.zoom({
-    position: "bottomright"
-  }).addTo(map);
+  try {
+    map = window.L.map(mapElement, {
+      zoomControl: false,
+      attributionControl: true
+    }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
-  window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "&copy; OpenStreetMap"
-  }).addTo(map);
+    window.L.control.zoom({
+      position: "bottomright"
+    }).addTo(map);
 
-  layerGroup = window.L.layerGroup().addTo(map);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
 
-  map.on("zoomend", actualizarClaseZoom);
-  actualizarClaseZoom();
+    layerGroup = window.L.layerGroup().addTo(map);
 
-  setGpsMap(map);
+    map.on("zoomend", actualizarClaseZoom);
+    actualizarClaseZoom();
 
-  return map;
+    if (typeof setGpsMap === "function") {
+      setGpsMap(map);
+    }
+
+    ocultarMapa();
+
+    return map;
+
+  } catch (error) {
+    const mensaje = String(error?.message || error || "");
+
+    if (mensaje.includes("already initialized")) {
+      console.warn("Leaflet ya había inicializado el contenedor #map. Se evita reinicialización.");
+      return map;
+    }
+
+    throw error;
+  }
 }
 
 /**
@@ -84,15 +135,46 @@ export function getLayerGroup() {
 }
 
 /**
+ * Muestra físicamente el mapa.
+ */
+export function mostrarMapa() {
+  document.body.classList.add("mapa-activo");
+
+  const mapElement = document.getElementById("map");
+
+  if (mapElement) {
+    mapElement.style.display = "block";
+  }
+
+  setTimeout(() => {
+    refrescarTamanioMapa();
+  }, 120);
+}
+
+/**
+ * Oculta físicamente el mapa.
+ */
+export function ocultarMapa() {
+  document.body.classList.remove("mapa-activo");
+
+  const mapElement = document.getElementById("map");
+
+  if (mapElement) {
+    mapElement.style.display = "none";
+  }
+}
+
+/**
  * Dibuja todas las paradas de la ruta cargada.
  */
 export function dibujarMapa() {
   asegurarMapa();
 
+  if (!map || !layerGroup) return;
+
   layerGroup.clearLayers();
 
   if (!state.paradas || !state.paradas.length) {
-    toastMapa("No hay paradas para esta ruta.", "error");
     actualizarStatusMapa("0 puntos cargados");
     return;
   }
@@ -100,8 +182,8 @@ export function dibujarMapa() {
   const bounds = [];
 
   state.paradas.forEach(parada => {
-    const lat = toNumber(parada.Latitud);
-    const lon = toNumber(parada.Longitud);
+    const lat = obtenerLatitud(parada);
+    const lon = obtenerLongitud(parada);
 
     if (!lat || !lon) return;
 
@@ -112,12 +194,10 @@ export function dibujarMapa() {
   });
 
   if (bounds.length) {
-    map.fitBounds(bounds, {
-      padding: [40, 40]
-    });
+    ajustarVistaBounds(bounds);
   }
 
-  actualizarStatusMapa(`${state.paradas.length} puntos cargados`);
+  actualizarStatusMapa(`${bounds.length} de ${state.paradas.length} puntos cargados`);
 }
 
 /**
@@ -208,9 +288,10 @@ export function limpiarMapa() {
 }
 
 /**
+ * Nueva función usada por mapaView.js.
  * Centra el mapa en las paradas actuales.
  */
-export function centrarMapaEnRuta() {
+export function centrarMapaRuta() {
   asegurarMapa();
 
   if (!state.paradas || !state.paradas.length) {
@@ -221,8 +302,8 @@ export function centrarMapaEnRuta() {
   const bounds = [];
 
   state.paradas.forEach(parada => {
-    const lat = toNumber(parada.Latitud);
-    const lon = toNumber(parada.Longitud);
+    const lat = obtenerLatitud(parada);
+    const lon = obtenerLongitud(parada);
 
     if (!lat || !lon) return;
 
@@ -234,9 +315,14 @@ export function centrarMapaEnRuta() {
     return;
   }
 
-  map.fitBounds(bounds, {
-    padding: [40, 40]
-  });
+  ajustarVistaBounds(bounds);
+}
+
+/**
+ * Alias para compatibilidad con código anterior.
+ */
+export function centrarMapaEnRuta() {
+  centrarMapaRuta();
 }
 
 /**
@@ -244,6 +330,11 @@ export function centrarMapaEnRuta() {
  */
 export function abrirPopupParada(paradaId, codBoca, rutaId) {
   asegurarMapa();
+
+  if (!state.paradas || !state.paradas.length) {
+    toastMapa("No hay paradas cargadas.", "error");
+    return;
+  }
 
   const parada = state.paradas.find(p =>
     String(p.ParadaID || "") === String(paradaId || "") ||
@@ -258,13 +349,15 @@ export function abrirPopupParada(paradaId, codBoca, rutaId) {
     return;
   }
 
-  const lat = toNumber(parada.Latitud);
-  const lon = toNumber(parada.Longitud);
+  const lat = obtenerLatitud(parada);
+  const lon = obtenerLongitud(parada);
 
   if (!lat || !lon) {
     toastMapa("La parada no tiene coordenadas válidas.", "error");
     return;
   }
+
+  mostrarMapa();
 
   map.setView([lat, lon], 16);
 }
@@ -310,10 +403,14 @@ function actualizarClaseZoom() {
  * Invalida el tamaño del mapa al cambiar de vista.
  */
 export function refrescarTamanioMapa() {
-  asegurarMapa();
+  if (!map) return;
 
   setTimeout(() => {
-    map.invalidateSize();
+    try {
+      map.invalidateSize();
+    } catch (error) {
+      console.warn("No se pudo refrescar tamaño del mapa:", error);
+    }
   }, 150);
 }
 
@@ -324,6 +421,68 @@ function asegurarMapa() {
   if (!map || !layerGroup) {
     initMap();
   }
+}
+
+/**
+ * Ajusta visualmente el mapa a una lista de coordenadas.
+ */
+function ajustarVistaBounds(bounds) {
+  if (!map || !bounds.length) return;
+
+  try {
+    if (bounds.length === 1) {
+      map.setView(bounds[0], 15);
+      return;
+    }
+
+    map.fitBounds(bounds, {
+      padding: [40, 40],
+      maxZoom: 15
+    });
+
+  } catch (error) {
+    console.warn("No se pudo ajustar el mapa a la ruta:", error);
+  }
+}
+
+/**
+ * Obtiene latitud de forma robusta.
+ */
+function obtenerLatitud(parada) {
+  const raw =
+    parada.Latitud ??
+    parada.latitud ??
+    parada.Lat ??
+    parada.lat ??
+    "";
+
+  const numero = Number(String(raw).replace(",", "."));
+
+  if (!Number.isFinite(numero)) return null;
+  if (numero < -90 || numero > 90) return null;
+
+  return numero;
+}
+
+/**
+ * Obtiene longitud de forma robusta.
+ */
+function obtenerLongitud(parada) {
+  const raw =
+    parada.Longitud ??
+    parada.longitud ??
+    parada.Lng ??
+    parada.lng ??
+    parada.Lon ??
+    parada.lon ??
+    "";
+
+  const numero = Number(String(raw).replace(",", "."));
+
+  if (!Number.isFinite(numero)) return null;
+  if (numero < -180 || numero > 180) return null;
+
+  return numero;
 }
 
 /**
