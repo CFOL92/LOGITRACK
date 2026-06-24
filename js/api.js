@@ -1,18 +1,27 @@
 // LOGITRACK - api.js
 // Servicio central de conexión con Apps Script.
 // Todas las llamadas a Google Sheets pasan por este archivo.
+//
+// Versión 1.6:
+// - Fuerza config.js con ?v=1.6 para evitar URL vieja desde caché.
+// - Guarda la última URL consultada para diagnóstico.
+// - Expone funciones globales para probar desde consola.
+// - Mantiene cache: "no-store" y parámetro _ts.
 
-import { SHEET_API } from "./config.js";
+import { SHEET_API } from "./config.js?v=1.6";
 
 const DEFAULT_TIMEOUT_MS = 30000;
+const API_BUILD = "v1.6";
 
 /**
  * Registra funciones globales para pruebas rápidas desde consola.
- * No es obligatorio, pero ayuda durante la migración modular.
  */
 export function registrarApiService() {
   window.apiGet = apiGet;
   window.verificarConexionAPI = verificarConexionAPI;
+  window.construirUrlAPI = construirUrlAPI;
+  window.LOGITRACK_API_BUILD = API_BUILD;
+  window.LOGITRACK_SHEET_API = SHEET_API;
 }
 
 /**
@@ -21,8 +30,8 @@ export function registrarApiService() {
  * Ejemplo:
  * apiGet({
  *   mode: "loginRuta",
- *   ci: "1234567",
- *   chapa: "ABC123",
+ *   ci: "4961054",
+ *   chapa: "BKR448",
  *   fecha: "2026-06-22"
  * });
  */
@@ -31,6 +40,14 @@ export async function apiGet(params = {}, options = {}) {
 
   const url = construirUrlAPI(params);
   const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
+
+  window.LOGITRACK_LAST_API_URL = url;
+
+  console.log("LOGITRACK API GET:", {
+    build: API_BUILD,
+    url,
+    params
+  });
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -64,21 +81,27 @@ export async function apiGet(params = {}, options = {}) {
       throw new Error("La API no devolvió JSON válido.");
     }
 
+    console.log("LOGITRACK API RESPUESTA:", data);
+
     return data;
 
   } catch (error) {
     clearTimeout(timer);
 
+    console.error("LOGITRACK API ERROR:", error);
+
     if (error.name === "AbortError") {
       return {
         ok: false,
-        mensaje: "Tiempo agotado al conectar con LOGITRACK."
+        mensaje: "Tiempo agotado al conectar con LOGITRACK.",
+        error: "AbortError"
       };
     }
 
     return {
       ok: false,
-      mensaje: error.message || "Error de conexión con LOGITRACK."
+      mensaje: error.message || "Error de conexión con LOGITRACK.",
+      error: String(error && error.message ? error.message : error)
     };
   }
 }
@@ -122,7 +145,11 @@ export function limpiarParametros(params = {}) {
     if (value === undefined || value === null) return;
 
     if (typeof value === "string") {
-      clean[key] = value.trim();
+      const txt = value.trim();
+
+      if (txt === "") return;
+
+      clean[key] = txt;
       return;
     }
 
@@ -141,6 +168,6 @@ function validarConfiguracionAPI() {
   }
 
   if (!SHEET_API.startsWith("https://script.google.com/macros/s/")) {
-    console.warn("La URL SHEET_API no parece ser una URL válida de Apps Script.");
+    console.warn("La URL SHEET_API no parece ser una URL válida de Apps Script:", SHEET_API);
   }
 }
