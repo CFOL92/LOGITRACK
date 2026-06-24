@@ -74,26 +74,22 @@ export function inicializarLogin() {
 /**
  * Restaura la sesión guardada.
  *
- * Regla operativa:
- * - Mantiene CI y chapa guardados.
- * - Si la fecha guardada no es hoy, reemplaza automáticamente por hoy.
- * - Carga automáticamente la ruta de hoy.
- * - La consulta de fechas históricas queda permitida solo cuando el usuario cambia la fecha manualmente.
+ * Regla operativa actualizada:
+ * - Mantiene CI, chapa y la última fecha cargada correctamente.
+ * - Si el chofer cargó una ruta histórica pendiente, al recargar vuelve a esa ruta.
+ * - No cambia automáticamente a la fecha de hoy.
+ * - Para cambiar a hoy, el usuario debe modificar la fecha manualmente o cerrar sesión.
  */
 function restaurarSesionActiva() {
   const sesion = leerSesionActiva();
 
   if (!sesion || !sesion.mantenerSesion) return;
 
-  const hoy = fechaHoyISO();
-
   const ci = normalizarCI(sesion.ci || "");
   const chapa = normalizarChapa(sesion.chapa || "");
   const fechaGuardada = normalizarFechaISO(sesion.fecha || "");
 
-  if (!ci || !chapa) return;
-
-  const fechaParaCargar = fechaGuardada === hoy ? fechaGuardada : hoy;
+  if (!ci || !chapa || !fechaGuardada) return;
 
   const ciInput = document.getElementById("ciInput");
   const chapaInput = document.getElementById("chapaInput");
@@ -102,21 +98,10 @@ function restaurarSesionActiva() {
 
   if (ciInput) ciInput.value = ci;
   if (chapaInput) chapaInput.value = chapa;
-  if (fechaInput) fechaInput.value = fechaParaCargar;
+  if (fechaInput) fechaInput.value = fechaGuardada;
   if (rememberInput) rememberInput.checked = true;
 
-  guardarSesionActiva({
-    ci,
-    chapa,
-    fecha: fechaParaCargar,
-    mantenerSesion: true
-  });
-
-  if (fechaGuardada && fechaGuardada !== hoy) {
-    setLoginMsg("Sesión activa detectada. Se actualizará la consulta a la ruta de hoy.", false);
-  } else {
-    setLoginMsg("Sesión activa detectada. Cargando ruta automáticamente...", false);
-  }
+  setLoginMsg("Sesión activa detectada. Cargando última ruta consultada...", false);
 
   setTimeout(() => {
     cargarRutaChofer(false);
