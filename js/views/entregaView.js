@@ -7,17 +7,13 @@
 // - Gestión intuitiva por producto desde pantalla
 // - Mantener compatibilidad con onclick globales
 //
-// Versión 1.7 - Fase 1.2-B:
-// - Rediseña la gestión para choferes.
-// - Factura: muestra primero "Ver productos" y "Entregar completa".
-// - Acciones críticas de factura quedan dentro de "Más opciones".
-// - Producto: permite seleccionar ENTREGADO, PARCIAL, RECHAZADO, NO DESPACHADO.
-// - Para PARCIAL solicita cantidad entregada y motivo.
-// - Para RECHAZADO / NO DESPACHADO solicita motivo.
-// - Elimina prompts para gestión de productos.
-// - Centraliza la actualización en productoActions.js usando window.actualizarProductoConDatos(...).
-// - Respeta ruta histórica pendiente editable.
-// - Bloquea acciones si soloLectura, rutaCerrada o HISTORICO_CERRADO.
+// Versión 1.7 - Fase 1.2-B Visual:
+// - Rediseña el panel de gestión para choferes.
+// - Quita "Ir con GPS" y "Refrescar" dentro del módulo de gestión.
+// - Mantiene GPS y Refrescar solamente en pantalla Ruta/Mapa.
+// - Reorganiza cliente, facturas y productos en flujo más profesional.
+// - Centraliza actualización de producto en productoActions.js.
+// - Mantiene bloqueo por soloLectura, rutaCerrada o HISTORICO_CERRADO.
 
 import { state } from "../state.js";
 
@@ -57,10 +53,6 @@ const MOTIVOS_PRODUCTO = [
   "Otro"
 ];
 
-/**
- * Registra funciones globales para mantener compatibilidad
- * con los botones actuales del HTML.
- */
 export function registrarEntregaView() {
   window.abrirParada = abrirParada;
   window.abrirParadaDesdeLista = abrirParadaDesdeLista;
@@ -80,16 +72,10 @@ export function registrarEntregaView() {
   window.renderAvisoModoRuta = renderAvisoModoRuta;
 }
 
-/**
- * Abre una parada desde la lista de ruta.
- */
 export function abrirParadaDesdeLista(paradaId, codBoca, rutaId) {
   abrirParada(paradaId, codBoca, rutaId);
 }
 
-/**
- * Abre una parada, carga sus facturas y muestra el panel lateral.
- */
 export async function abrirParada(paradaId, codBoca, rutaId) {
   const parada = buscarParadaPorClaves({
     paradaId,
@@ -126,9 +112,6 @@ export async function abrirParada(paradaId, codBoca, rutaId) {
   }
 }
 
-/**
- * Renderiza las facturas de la parada activa.
- */
 export function renderFacturas(facturas) {
   const parada = state.paradaActiva;
 
@@ -140,7 +123,7 @@ export function renderFacturas(facturas) {
   if (!facturas || !facturas.length) {
     setSideBody(`
       ${renderAvisoModoRuta()}
-      ${renderResumenParada(parada)}
+      ${renderHeaderGestionParada(parada)}
       ${renderPanelMensaje("No hay facturas para esta parada.")}
     `);
     return;
@@ -148,9 +131,14 @@ export function renderFacturas(facturas) {
 
   const html = `
     ${renderAvisoModoRuta()}
-    ${renderResumenParada(parada)}
+    ${renderHeaderGestionParada(parada)}
 
-    <div class="section-title">Facturas a entregar</div>
+    <div class="gestion-section-head">
+      <div>
+        <div class="gestion-section-title">Facturas a entregar</div>
+        <div class="gestion-section-subtitle">${facturas.length} factura(s) asociada(s) a este cliente</div>
+      </div>
+    </div>
 
     ${facturas.map(f => renderFacturaCard(f)).join("")}
   `;
@@ -158,9 +146,49 @@ export function renderFacturas(facturas) {
   setSideBody(html);
 }
 
-/**
- * Tarjeta visual de una factura.
- */
+function renderHeaderGestionParada(parada) {
+  const estado = cleanEstado(parada.EstadoParada || "PENDIENTE");
+
+  return `
+    <div class="gestion-cliente-card">
+      <div class="gestion-cliente-top">
+        <div>
+          <div class="gestion-cliente-nombre">${escapeHtml(parada.Cliente || parada.Boca || "Cliente")}</div>
+          <div class="gestion-cliente-meta">
+            CodBoca: ${escapeHtml(parada.CodBoca || "")}<br>
+            ${escapeHtml(parada.Ciudad || "")} | ${escapeHtml(parada.Zona || "")}<br>
+            Dirección: ${escapeHtml(parada.Direccion || "-")}
+          </div>
+        </div>
+
+        <span class="badge ${estado}">${estado}</span>
+      </div>
+
+      <div class="gestion-kpi-grid">
+        <div class="gestion-kpi">
+          <b>${parada.CantidadFacturas || 0}</b>
+          <span>Facturas</span>
+        </div>
+
+        <div class="gestion-kpi">
+          <b>${parada.CantidadProductos || 0}</b>
+          <span>Productos</span>
+        </div>
+
+        <div class="gestion-kpi">
+          <b>${formatoNum.format(toNumber(parada.TotalPesoKg))}</b>
+          <span>Kg</span>
+        </div>
+
+        <div class="gestion-kpi">
+          <b>${formatoNum.format(toNumber(parada.TotalPallets))}</b>
+          <span>Pallets</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderFacturaCard(f) {
   const estado = cleanEstado(f.EstadoFactura || "PENDIENTE");
   const facturaId = String(f.FacturaID || "");
@@ -170,15 +198,14 @@ function renderFacturaCard(f) {
   const opcionesId = crearIdDom("factura-opciones", facturaId);
 
   return `
-    <div class="card factura-card" data-factura-id="${escapeAttr(facturaId)}">
-      <div class="card-header">
+    <div class="gestion-factura-card" data-factura-id="${escapeAttr(facturaId)}">
+      <div class="gestion-factura-head">
         <div>
-          <div class="card-title">Factura ${escapeHtml(f.NumFactura || "")}</div>
-
-          <div class="card-meta">
+          <div class="gestion-factura-title">Factura ${escapeHtml(f.NumFactura || "")}</div>
+          <div class="gestion-factura-meta">
             Pedido: ${escapeHtml(f.NumPedido || "")}<br>
-            Productos: ${f.CantidadProductos || 0}<br>
-            Peso: ${formatoNum.format(toNumber(f.TotalPesoKg))} kg |
+            Productos: ${f.CantidadProductos || 0} |
+            Peso: ${formatoNum.format(toNumber(f.TotalPesoKg))} kg<br>
             Importe: Gs. ${formatoGs.format(toNumber(f.TotalImporte))}
           </div>
         </div>
@@ -186,7 +213,7 @@ function renderFacturaCard(f) {
         <span class="badge ${estado}">${estado}</span>
       </div>
 
-      <div class="btn-row">
+      <div class="gestion-action-primary">
         <button class="btn-secondary" onclick="window.verProductos('${escapeAttr(facturaId)}')">
           Ver productos
         </button>
@@ -201,18 +228,17 @@ function renderFacturaCard(f) {
         </button>
       </div>
 
-      <div class="btn-row">
-        <button class="btn-neutral" onclick="window.toggleOpcionesFactura('${escapeAttr(facturaId)}')">
-          Más opciones
-        </button>
-      </div>
+      <button class="gestion-link-danger" onclick="window.toggleOpcionesFactura('${escapeAttr(facturaId)}')">
+        Mostrar acciones de excepción
+      </button>
 
-      <div id="${escapeAttr(opcionesId)}" class="factura-opciones" style="display:none;margin-top:10px;">
-        <div class="panel-empty" style="margin-bottom:10px;">
-          Acciones críticas de la factura. Usar solo si corresponde.
+      <div id="${escapeAttr(opcionesId)}" class="gestion-exception-box" style="display:none;">
+        <div class="gestion-exception-title">Acciones de excepción</div>
+        <div class="gestion-exception-text">
+          Use estas opciones solo cuando la factura completa no será entregada.
         </div>
 
-        <div class="btn-row">
+        <div class="gestion-action-primary">
           <button
             class="btn-danger"
             ${disabledAttr}
@@ -236,9 +262,6 @@ function renderFacturaCard(f) {
   `;
 }
 
-/**
- * Muestra/oculta opciones críticas de factura.
- */
 export function toggleOpcionesFactura(facturaId) {
   const id = crearIdDom("factura-opciones", facturaId);
   const el = document.getElementById(id);
@@ -250,9 +273,6 @@ export function toggleOpcionesFactura(facturaId) {
     : "none";
 }
 
-/**
- * Carga y muestra los productos de una factura.
- */
 export async function verProductos(facturaId) {
   const id = String(facturaId || "").trim();
 
@@ -281,9 +301,6 @@ export async function verProductos(facturaId) {
   }
 }
 
-/**
- * Renderiza productos de una factura.
- */
 export function renderProductos(facturaId, productos) {
   if (!productos || !productos.length) {
     setSideBody(`
@@ -295,18 +312,18 @@ export function renderProductos(facturaId, productos) {
   }
 
   const factura = buscarFactura(facturaId);
-  const titulo = factura ? `Factura ${factura.NumFactura || ""}` : "Productos de factura";
 
   const html = `
     ${renderAvisoModoRuta()}
     ${renderBotonVolverFacturas()}
 
-    <div class="section-title">${escapeHtml(titulo)}</div>
+    ${factura ? renderHeaderFacturaProductos(factura) : ""}
 
-    ${factura ? renderResumenFactura(factura) : ""}
-
-    <div class="panel-empty" style="margin-bottom:10px;">
-      Seleccione el tipo de entrega de cada producto. Solo se pedirá cantidad o motivo cuando aplique.
+    <div class="gestion-section-head">
+      <div>
+        <div class="gestion-section-title">Productos de la factura</div>
+        <div class="gestion-section-subtitle">Seleccione el resultado de entrega por producto</div>
+      </div>
     </div>
 
     ${productos.map(p => renderProductoCard(p)).join("")}
@@ -315,62 +332,18 @@ export function renderProductos(facturaId, productos) {
   setSideBody(html);
 }
 
-/**
- * Resumen superior de la parada.
- */
-function renderResumenParada(parada) {
-  const estado = cleanEstado(parada.EstadoParada || "PENDIENTE");
-
-  return `
-    <div class="card">
-      <div class="card-header">
-        <div>
-          <div class="card-title">${escapeHtml(parada.Cliente || parada.Boca || "Cliente")}</div>
-
-          <div class="card-meta">
-            CodBoca: ${escapeHtml(parada.CodBoca || "")}<br>
-            ${escapeHtml(parada.Ciudad || "")} | ${escapeHtml(parada.Zona || "")}<br>
-            Dirección: ${escapeHtml(parada.Direccion || "-")}<br>
-            Facturas: ${parada.CantidadFacturas || 0} |
-            Productos: ${parada.CantidadProductos || 0}<br>
-            Peso: ${formatoNum.format(toNumber(parada.TotalPesoKg))} kg |
-            Pallets: ${formatoNum.format(toNumber(parada.TotalPallets))}
-          </div>
-        </div>
-
-        <span class="badge ${estado}">${estado}</span>
-      </div>
-
-      <div class="btn-row">
-        <a class="link-gps" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${escapeAttr(parada.Latitud || "")},${escapeAttr(parada.Longitud || "")}">
-          Ir con GPS
-        </a>
-
-        <button class="btn-secondary" onclick="window.refrescarParadaActiva()">
-          Refrescar
-        </button>
-      </div>
-    </div>
-  `;
-}
-
-/**
- * Resumen de factura antes de los productos.
- */
-function renderResumenFactura(factura) {
+function renderHeaderFacturaProductos(factura) {
   const estado = cleanEstado(factura.EstadoFactura || "PENDIENTE");
 
   return `
-    <div class="card">
-      <div class="card-header">
+    <div class="gestion-factura-resumen">
+      <div class="gestion-factura-head">
         <div>
-          <div class="card-title">Resumen factura</div>
-
-          <div class="card-meta">
-            Factura: ${escapeHtml(factura.NumFactura || "")}<br>
+          <div class="gestion-factura-title">Factura ${escapeHtml(factura.NumFactura || "")}</div>
+          <div class="gestion-factura-meta">
             Pedido: ${escapeHtml(factura.NumPedido || "")}<br>
-            Productos: ${factura.CantidadProductos || 0}<br>
-            Peso: ${formatoNum.format(toNumber(factura.TotalPesoKg))} kg |
+            Productos: ${factura.CantidadProductos || 0} |
+            Peso: ${formatoNum.format(toNumber(factura.TotalPesoKg))} kg<br>
             Importe: Gs. ${formatoGs.format(toNumber(factura.TotalImporte))}
           </div>
         </div>
@@ -381,9 +354,6 @@ function renderResumenFactura(factura) {
   `;
 }
 
-/**
- * Tarjeta visual de producto con gestión intuitiva.
- */
 function renderProductoCard(p) {
   const estado = cleanEstado(p.EstadoProducto || "PENDIENTE");
   const productoFacturaId = String(p.ProductoFacturaID || "");
@@ -394,23 +364,22 @@ function renderProductoCard(p) {
 
   return `
     <div
-      class="card producto-gestion-card"
+      class="gestion-producto-card producto-gestion-card"
       data-producto-id="${escapeAttr(productoFacturaId)}"
       data-planificado="${escapeAttr(planificado)}"
       data-estado-seleccionado=""
     >
-      <div class="card-header">
+      <div class="gestion-producto-head">
         <div>
-          <div class="card-title">
+          <div class="gestion-producto-title">
             ${escapeHtml(p.ProductoMaestro || p.DescripcionProducto || "Producto")}
           </div>
 
-          <div class="card-meta">
+          <div class="gestion-producto-meta">
             Código: ${escapeHtml(p.CodProducto || "")}<br>
             Planificado: ${formatoNum.format(planificado)} ${escapeHtml(p.UnidadMedida || "")}<br>
-            Unidades: ${formatoNum.format(toNumber(p.CantidadUnidades))}<br>
             Cajas: ${formatoNum.format(toNumber(p.CajasCalculadas))} |
-            Pallets: ${formatoNum.format(toNumber(p.PalletsCalculados))}<br>
+            Pallets: ${formatoNum.format(toNumber(p.PalletsCalculados))} |
             Peso: ${formatoNum.format(toNumber(p.PesoKgCalculado))} kg
           </div>
         </div>
@@ -418,15 +387,15 @@ function renderProductoCard(p) {
         <span class="badge ${estado}">${estado}</span>
       </div>
 
-      <div class="product-line">
+      <div class="gestion-producto-resultado">
         Entregado: ${escapeHtml(p.CantidadEntregada || "-")} |
         Rechazado: ${escapeHtml(p.CantidadRechazada || "-")}<br>
         Motivo: ${escapeHtml(p.MotivoProducto || "-")}
       </div>
 
-      <div class="section-title" style="margin-top:12px;">Tipo de entrega</div>
+      <div class="gestion-mini-label">Tipo de entrega</div>
 
-      <div class="btn-row-4 product-status-row">
+      <div class="gestion-product-status-grid">
         <button
           class="btn-success product-status-btn"
           ${disabledAttr}
@@ -464,8 +433,8 @@ function renderProductoCard(p) {
         </button>
       </div>
 
-      <div class="producto-form" style="display:none;margin-top:12px;">
-        <div class="panel-empty producto-ayuda" style="margin-bottom:10px;">
+      <div class="producto-form gestion-producto-form" style="display:none;">
+        <div class="gestion-form-help producto-ayuda">
           Seleccione un tipo de entrega.
         </div>
 
@@ -498,7 +467,7 @@ function renderProductoCard(p) {
           ></textarea>
         </div>
 
-        <div class="btn-row">
+        <div class="gestion-action-primary">
           <button
             class="btn-success"
             ${disabledAttr}
@@ -520,9 +489,6 @@ function renderProductoCard(p) {
   `;
 }
 
-/**
- * Selecciona visualmente el estado del producto.
- */
 export function seleccionarEstadoProducto(productoFacturaId, estado) {
   if (rutaBloqueadaParaGestion()) {
     toastEntrega(mensajeRutaBloqueada(), "error");
@@ -547,8 +513,6 @@ export function seleccionarEstadoProducto(productoFacturaId, estado) {
 
   card.querySelectorAll(".product-status-btn").forEach(btn => {
     btn.classList.remove("selected", "active");
-    btn.style.outline = "";
-    btn.style.transform = "";
   });
 
   const botones = Array.from(card.querySelectorAll(".product-status-btn"));
@@ -559,16 +523,11 @@ export function seleccionarEstadoProducto(productoFacturaId, estado) {
 
   if (botonSeleccionado) {
     botonSeleccionado.classList.add("selected", "active");
-    botonSeleccionado.style.outline = "3px solid rgba(15, 23, 42, 0.25)";
-    botonSeleccionado.style.transform = "scale(0.98)";
   }
 
   actualizarFormularioProducto(card, estadoNormalizado);
 }
 
-/**
- * Ajusta campos visibles según estado elegido.
- */
 function actualizarFormularioProducto(card, estado) {
   const form = card.querySelector(".producto-form");
   const ayuda = card.querySelector(".producto-ayuda");
@@ -590,41 +549,29 @@ function actualizarFormularioProducto(card, estado) {
   if (motivoOtro) motivoOtro.value = "";
 
   if (estado === ESTADOS_PRODUCTO.ENTREGADO_TOTAL) {
-    if (ayuda) {
-      ayuda.innerHTML = "Se marcará como <b>entregado total</b>. No necesita cantidad ni motivo.";
-    }
+    if (ayuda) ayuda.innerHTML = "Se registrará como <b>entregado total</b>.";
     return;
   }
 
   if (estado === ESTADOS_PRODUCTO.ENTREGADO_PARCIAL) {
-    if (ayuda) {
-      ayuda.innerHTML = "Entrega parcial: cargue la cantidad entregada y el motivo.";
-    }
+    if (ayuda) ayuda.innerHTML = "Ingrese la cantidad entregada y seleccione el motivo.";
     if (cantidadWrap) cantidadWrap.style.display = "block";
     if (motivoWrap) motivoWrap.style.display = "block";
     return;
   }
 
   if (estado === ESTADOS_PRODUCTO.RECHAZADO_TOTAL) {
-    if (ayuda) {
-      ayuda.innerHTML = "Rechazo total: indique el motivo del rechazo.";
-    }
+    if (ayuda) ayuda.innerHTML = "Seleccione el motivo del rechazo.";
     if (motivoWrap) motivoWrap.style.display = "block";
     return;
   }
 
   if (estado === ESTADOS_PRODUCTO.NO_DESPACHADO) {
-    if (ayuda) {
-      ayuda.innerHTML = "No despachado: indique el motivo.";
-    }
+    if (ayuda) ayuda.innerHTML = "Seleccione el motivo de no despachado.";
     if (motivoWrap) motivoWrap.style.display = "block";
   }
 }
 
-/**
- * Guarda la gestión del producto sin usar prompts.
- * La actualización real se centraliza en productoActions.js.
- */
 export async function guardarGestionProducto(productoFacturaId) {
   if (!validarContextoGestionProducto()) return;
 
@@ -687,9 +634,6 @@ export async function guardarGestionProducto(productoFacturaId) {
   });
 }
 
-/**
- * Limpia selección y campos de un producto.
- */
 export function limpiarGestionProducto(productoFacturaId) {
   const card = buscarCardProducto(productoFacturaId);
 
@@ -699,8 +643,6 @@ export function limpiarGestionProducto(productoFacturaId) {
 
   card.querySelectorAll(".product-status-btn").forEach(btn => {
     btn.classList.remove("selected", "active");
-    btn.style.outline = "";
-    btn.style.transform = "";
   });
 
   const form = card.querySelector(".producto-form");
@@ -716,20 +658,14 @@ export function limpiarGestionProducto(productoFacturaId) {
   if (motivoOtro) motivoOtro.value = "";
 }
 
-/**
- * Botón para volver desde productos a facturas.
- */
 function renderBotonVolverFacturas() {
   return `
-    <button class="btn-secondary" style="margin-bottom:10px;width:100%;" onclick="window.volverAFacturas()">
+    <button class="gestion-back-btn" onclick="window.volverAFacturas()">
       ← Volver a facturas
     </button>
   `;
 }
 
-/**
- * Vuelve a facturas de la parada activa.
- */
 export async function volverAFacturas() {
   const parada = state.paradaActiva;
 
@@ -758,9 +694,6 @@ export async function volverAFacturas() {
   }
 }
 
-/**
- * Refresca la parada activa ignorando el cache local.
- */
 export async function refrescarParadaActiva() {
   const parada = state.paradaActiva;
 
@@ -786,9 +719,6 @@ export async function refrescarParadaActiva() {
   );
 }
 
-/**
- * Actualiza título y subtítulo del panel lateral.
- */
 function actualizarHeaderPanel(parada) {
   const sideTitle = document.getElementById("sideTitle");
   const sideSubtitle = document.getElementById("sideSubtitle");
@@ -804,9 +734,6 @@ function actualizarHeaderPanel(parada) {
   }
 }
 
-/**
- * Abre panel lateral.
- */
 export function abrirPanel() {
   const panel = document.getElementById("sidePanel");
 
@@ -815,9 +742,6 @@ export function abrirPanel() {
   }
 }
 
-/**
- * Cierra panel lateral.
- */
 export function cerrarPanel() {
   const panel = document.getElementById("sidePanel");
 
@@ -828,9 +752,6 @@ export function cerrarPanel() {
   state.facturaActiva = null;
 }
 
-/**
- * Escribe contenido dentro del panel lateral.
- */
 export function setSideBody(html) {
   const sideBody = document.getElementById("sideBody");
 
@@ -840,13 +761,9 @@ export function setSideBody(html) {
   }
 
   sideBody.innerHTML = html;
-
   inicializarEventosProductoForm();
 }
 
-/**
- * Inicializa listeners internos de formularios de producto.
- */
 function inicializarEventosProductoForm() {
   document.querySelectorAll(".producto-motivo-select").forEach(select => {
     select.addEventListener("change", () => {
@@ -862,9 +779,6 @@ function inicializarEventosProductoForm() {
   });
 }
 
-/**
- * Valida contexto general de gestión.
- */
 function validarContextoGestionProducto() {
   if (!state.ci || !state.chapa || !state.fecha) {
     toastEntrega("No hay una ruta activa. Vuelve a cargar la ruta.", "error");
@@ -879,9 +793,6 @@ function validarContextoGestionProducto() {
   return true;
 }
 
-/**
- * Indica si la ruta debe bloquear botones operativos.
- */
 function rutaBloqueadaParaGestion() {
   const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
 
@@ -892,9 +803,6 @@ function rutaBloqueadaParaGestion() {
   );
 }
 
-/**
- * Mensaje operativo cuando la ruta está bloqueada.
- */
 function mensajeRutaBloqueada() {
   const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
 
@@ -913,16 +821,13 @@ function mensajeRutaBloqueada() {
   return "Ruta bloqueada para gestión.";
 }
 
-/**
- * Aviso visible del modo de ruta.
- */
 function renderAvisoModoRuta() {
   const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
 
   if (modo === "HISTORICO_PENDIENTE" && !rutaBloqueadaParaGestion()) {
     return `
-      <div class="panel-empty" style="margin-bottom:10px;border-left:4px solid #f59e0b;">
-        ⚠️ Ruta histórica pendiente. Se permite continuar la gestión porque no está cerrada.
+      <div class="gestion-alert-info">
+        ⚠️ Ruta histórica pendiente editable.
       </div>
     `;
   }
@@ -938,9 +843,6 @@ function renderAvisoModoRuta() {
   return "";
 }
 
-/**
- * Busca card de producto en pantalla.
- */
 function buscarCardProducto(productoFacturaId) {
   const id = String(productoFacturaId || "");
 
@@ -948,9 +850,6 @@ function buscarCardProducto(productoFacturaId) {
     .find(card => String(card.dataset.productoId || "") === id) || null;
 }
 
-/**
- * Normaliza cantidad entregada.
- */
 function normalizarCantidad(value) {
   const raw = String(value || "")
     .trim()
@@ -967,9 +866,6 @@ function normalizarCantidad(value) {
   return String(numero);
 }
 
-/**
- * Obtiene motivo desde select o texto libre.
- */
 function obtenerMotivoProducto(card) {
   const select = card.querySelector(".producto-motivo-select");
   const otro = card.querySelector(".producto-motivo-otro");
@@ -983,18 +879,12 @@ function obtenerMotivoProducto(card) {
   return motivoBase;
 }
 
-/**
- * Crea ID seguro para elementos DOM.
- */
 function crearIdDom(prefix, value) {
   return `${prefix}-${String(value || "")
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .slice(0, 80)}`;
 }
 
-/**
- * Mensaje de carga.
- */
 function renderLoading(texto) {
   return `
     <div class="panel-loading">
@@ -1003,9 +893,6 @@ function renderLoading(texto) {
   `;
 }
 
-/**
- * Mensaje simple del panel.
- */
 function renderPanelMensaje(texto, isError = false) {
   return `
     <div class="${isError ? "cierre-warning" : "panel-empty"}">
@@ -1014,9 +901,6 @@ function renderPanelMensaje(texto, isError = false) {
   `;
 }
 
-/**
- * Toast local del módulo.
- */
 function toastEntrega(msg, type) {
   const el = document.getElementById("toast");
 
