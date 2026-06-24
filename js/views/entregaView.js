@@ -4,23 +4,32 @@
 // - Cargar facturas de una parada
 // - Cargar productos de una factura
 // - Renderizar panel lateral de gestión
+// - Gestión intuitiva por producto desde pantalla
 // - Mantener compatibilidad con onclick globales
 //
-// Versión 1.6 - Fase 1.2-A:
-// - Muestra aviso visual cuando la ruta es histórica.
-// - Deshabilita botones operativos si soloLectura=true.
-// - Deshabilita botones operativos si rutaCerrada=true.
-// - Deshabilita botones operativos si modoConsulta=HISTORICO_CERRADO.
-// - Permite consultar facturas/productos aunque esté bloqueada.
-// - Mantiene HISTORICO_PENDIENTE editable si soloLectura=false.
+// Versión 1.7 - Fase 1.2-B:
+// - Rediseña la gestión para choferes.
+// - Factura: muestra primero "Ver productos" y "Entregar completa".
+// - Acciones críticas de factura quedan dentro de "Más opciones".
+// - Producto: permite seleccionar ENTREGADO, PARCIAL, RECHAZADO, NO DESPACHADO.
+// - Para PARCIAL solicita cantidad entregada y motivo.
+// - Para RECHAZADO / NO DESPACHADO solicita motivo.
+// - Elimina prompts para gestión de productos.
+// - Mantiene compatibilidad con acciones existentes de factura.
+// - Respeta ruta histórica pendiente editable.
+// - Bloquea acciones si soloLectura, rutaCerrada o HISTORICO_CERRADO.
 
 import { state } from "../state.js";
+
 import {
   buscarParadaPorClaves,
   cargarFacturasParada,
   cargarProductosFactura,
   buscarFactura
-} from "../services/routeService.js?v=1.6";
+} from "../services/routeService.js?v=1.7";
+
+import { apiGet } from "../api.js?v=1.7";
+import { obtenerGPS } from "../services/gpsService.js?v=1.7";
 
 import {
   cleanEstado,
@@ -29,13 +38,33 @@ import {
   formatoNum,
   formatoGs,
   toNumber
-} from "../utils.js?v=1.6";
+} from "../utils.js?v=1.7";
+
+let accionProductoPantallaEnCurso = false;
+
+const ESTADOS_PRODUCTO = {
+  ENTREGADO_TOTAL: "ENTREGADO_TOTAL",
+  ENTREGADO_PARCIAL: "ENTREGADO_PARCIAL",
+  RECHAZADO_TOTAL: "RECHAZADO_TOTAL",
+  NO_DESPACHADO: "NO_DESPACHADO"
+};
+
+const MOTIVOS_PRODUCTO = [
+  "Cliente no recibe",
+  "Producto averiado",
+  "Diferencia de cantidad",
+  "Producto no solicitado",
+  "Local cerrado",
+  "Sin espacio para recibir",
+  "Documento no coincide",
+  "Pedido fuera de horario",
+  "No despachado en depósito",
+  "Otro"
+];
 
 /**
  * Registra funciones globales para mantener compatibilidad
- * con los botones actuales del HTML:
- * onclick="window.abrirParada(...)"
- * onclick="window.verProductos(...)"
+ * con los botones actuales del HTML.
  */
 export function registrarEntregaView() {
   window.abrirParada = abrirParada;
@@ -46,6 +75,11 @@ export function registrarEntregaView() {
   window.abrirPanel = abrirPanel;
   window.cerrarPanel = cerrarPanel;
   window.setSideBody = setSideBody;
+
+  window.toggleOpcionesFactura = toggleOpcionesFactura;
+  window.seleccionarEstadoProducto = seleccionarEstadoProducto;
+  window.guardarGestionProducto = guardarGestionProducto;
+  window.limpiarGestionProducto = limpiarGestionProducto;
 
   window.rutaBloqueadaEntrega = rutaBloqueadaParaGestion;
   window.renderAvisoModoRuta = renderAvisoModoRuta;
@@ -121,7 +155,7 @@ export function renderFacturas(facturas) {
     ${renderAvisoModoRuta()}
     ${renderResumenParada(parada)}
 
-    <div class="section-title">Facturas de la parada</div>
+    <div class="section-title">Facturas a entregar</div>
 
     ${facturas.map(f => renderFacturaCard(f)).join("")}
   `;
@@ -134,12 +168,14 @@ export function renderFacturas(facturas) {
  */
 function renderFacturaCard(f) {
   const estado = cleanEstado(f.EstadoFactura || "PENDIENTE");
+  const facturaId = String(f.FacturaID || "");
   const bloqueado = rutaBloqueadaParaGestion();
   const disabledAttr = bloqueado ? "disabled" : "";
   const disabledTitle = bloqueado ? `title="${escapeAttr(mensajeRutaBloqueada())}"` : "";
+  const opcionesId = crearIdDom("factura-opciones", facturaId);
 
   return `
-    <div class="card">
+    <div class="card factura-card" data-factura-id="${escapeAttr(facturaId)}">
       <div class="card-header">
         <div>
           <div class="card-title">Factura ${escapeHtml(f.NumFactura || "")}</div>
@@ -156,41 +192,67 @@ function renderFacturaCard(f) {
       </div>
 
       <div class="btn-row">
+        <button class="btn-secondary" onclick="window.verProductos('${escapeAttr(facturaId)}')">
+          Ver productos
+        </button>
+
         <button
           class="btn-success"
           ${disabledAttr}
           ${disabledTitle}
-          onclick="window.confirmarFactura('${escapeAttr(f.FacturaID || "")}')"
+          onclick="window.confirmarFactura('${escapeAttr(facturaId)}')"
         >
-          Confirmar completa
-        </button>
-
-        <button class="btn-secondary" onclick="window.verProductos('${escapeAttr(f.FacturaID || "")}')">
-          Gestionar productos
+          Entregar completa
         </button>
       </div>
 
       <div class="btn-row">
-        <button
-          class="btn-danger"
-          ${disabledAttr}
-          ${disabledTitle}
-          onclick="window.rechazarFactura('${escapeAttr(f.FacturaID || "")}')"
-        >
-          Rechazar total
+        <button class="btn-neutral" onclick="window.toggleOpcionesFactura('${escapeAttr(facturaId)}')">
+          Más opciones
         </button>
+      </div>
 
-        <button
-          class="btn-neutral"
-          ${disabledAttr}
-          ${disabledTitle}
-          onclick="window.noDespachadoFactura('${escapeAttr(f.FacturaID || "")}')"
-        >
-          No despachada
-        </button>
+      <div id="${escapeAttr(opcionesId)}" class="factura-opciones" style="display:none;margin-top:10px;">
+        <div class="panel-empty" style="margin-bottom:10px;">
+          Acciones críticas de la factura. Usar solo si corresponde.
+        </div>
+
+        <div class="btn-row">
+          <button
+            class="btn-danger"
+            ${disabledAttr}
+            ${disabledTitle}
+            onclick="window.rechazarFactura('${escapeAttr(facturaId)}')"
+          >
+            Rechazar total
+          </button>
+
+          <button
+            class="btn-neutral"
+            ${disabledAttr}
+            ${disabledTitle}
+            onclick="window.noDespachadoFactura('${escapeAttr(facturaId)}')"
+          >
+            No despachada
+          </button>
+        </div>
       </div>
     </div>
   `;
+}
+
+/**
+ * Muestra/oculta opciones críticas de factura.
+ */
+export function toggleOpcionesFactura(facturaId) {
+  const id = crearIdDom("factura-opciones", facturaId);
+  const el = document.getElementById(id);
+
+  if (!el) return;
+
+  el.style.display = el.style.display === "none" || !el.style.display
+    ? "block"
+    : "none";
 }
 
 /**
@@ -238,7 +300,7 @@ export function renderProductos(facturaId, productos) {
   }
 
   const factura = buscarFactura(facturaId);
-  const titulo = factura ? `Factura ${factura.NumFactura || ""}` : "Productos";
+  const titulo = factura ? `Factura ${factura.NumFactura || ""}` : "Productos de factura";
 
   const html = `
     ${renderAvisoModoRuta()}
@@ -247,6 +309,10 @@ export function renderProductos(facturaId, productos) {
     <div class="section-title">${escapeHtml(titulo)}</div>
 
     ${factura ? renderResumenFactura(factura) : ""}
+
+    <div class="panel-empty" style="margin-bottom:10px;">
+      Seleccione el tipo de entrega de cada producto. Solo se pedirá cantidad o motivo cuando aplique.
+    </div>
 
     ${productos.map(p => renderProductoCard(p)).join("")}
   `;
@@ -321,16 +387,23 @@ function renderResumenFactura(factura) {
 }
 
 /**
- * Tarjeta visual de producto.
+ * Tarjeta visual de producto con gestión intuitiva.
  */
 function renderProductoCard(p) {
   const estado = cleanEstado(p.EstadoProducto || "PENDIENTE");
+  const productoFacturaId = String(p.ProductoFacturaID || "");
+  const planificado = toNumber(p.CantidadPlanificada);
   const bloqueado = rutaBloqueadaParaGestion();
   const disabledAttr = bloqueado ? "disabled" : "";
   const disabledTitle = bloqueado ? `title="${escapeAttr(mensajeRutaBloqueada())}"` : "";
 
   return `
-    <div class="card">
+    <div
+      class="card producto-gestion-card"
+      data-producto-id="${escapeAttr(productoFacturaId)}"
+      data-planificado="${escapeAttr(planificado)}"
+      data-estado-seleccionado=""
+    >
       <div class="card-header">
         <div>
           <div class="card-title">
@@ -339,7 +412,7 @@ function renderProductoCard(p) {
 
           <div class="card-meta">
             Código: ${escapeHtml(p.CodProducto || "")}<br>
-            Planificado: ${formatoNum.format(toNumber(p.CantidadPlanificada))} ${escapeHtml(p.UnidadMedida || "")}<br>
+            Planificado: ${formatoNum.format(planificado)} ${escapeHtml(p.UnidadMedida || "")}<br>
             Unidades: ${formatoNum.format(toNumber(p.CantidadUnidades))}<br>
             Cajas: ${formatoNum.format(toNumber(p.CajasCalculadas))} |
             Pallets: ${formatoNum.format(toNumber(p.PalletsCalculados))}<br>
@@ -356,45 +429,344 @@ function renderProductoCard(p) {
         Motivo: ${escapeHtml(p.MotivoProducto || "-")}
       </div>
 
-      <div class="btn-row-4">
+      <div class="section-title" style="margin-top:12px;">Tipo de entrega</div>
+
+      <div class="btn-row-4 product-status-row">
         <button
-          class="btn-success"
+          class="btn-success product-status-btn"
           ${disabledAttr}
           ${disabledTitle}
-          onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'ENTREGADO_TOTAL')"
+          onclick="window.seleccionarEstadoProducto('${escapeAttr(productoFacturaId)}', 'ENTREGADO_TOTAL')"
         >
-          Total
+          Entregado
         </button>
 
         <button
-          class="btn-warning"
+          class="btn-warning product-status-btn"
           ${disabledAttr}
           ${disabledTitle}
-          onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'ENTREGADO_PARCIAL')"
+          onclick="window.seleccionarEstadoProducto('${escapeAttr(productoFacturaId)}', 'ENTREGADO_PARCIAL')"
         >
           Parcial
         </button>
 
         <button
-          class="btn-danger"
+          class="btn-danger product-status-btn"
           ${disabledAttr}
           ${disabledTitle}
-          onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'RECHAZADO_TOTAL')"
+          onclick="window.seleccionarEstadoProducto('${escapeAttr(productoFacturaId)}', 'RECHAZADO_TOTAL')"
         >
-          Rechazo
+          Rechazado
         </button>
 
         <button
-          class="btn-neutral"
+          class="btn-neutral product-status-btn"
           ${disabledAttr}
           ${disabledTitle}
-          onclick="window.actualizarProducto('${escapeAttr(p.ProductoFacturaID || "")}', 'NO_DESPACHADO')"
+          onclick="window.seleccionarEstadoProducto('${escapeAttr(productoFacturaId)}', 'NO_DESPACHADO')"
         >
-          N/D
+          No desp.
         </button>
+      </div>
+
+      <div class="producto-form" style="display:none;margin-top:12px;">
+        <div class="panel-empty producto-ayuda" style="margin-bottom:10px;">
+          Seleccione un tipo de entrega.
+        </div>
+
+        <div class="form-group producto-cantidad-wrap" style="display:none;">
+          <label>Cantidad entregada</label>
+          <input
+            class="producto-cantidad-input"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            step="0.01"
+            placeholder="Ej: ${escapeAttr(planificado)}"
+          />
+        </div>
+
+        <div class="form-group producto-motivo-wrap" style="display:none;">
+          <label>Motivo</label>
+          <select class="producto-motivo-select">
+            <option value="">Seleccione motivo</option>
+            ${MOTIVOS_PRODUCTO.map(m => `<option value="${escapeAttr(m)}">${escapeHtml(m)}</option>`).join("")}
+          </select>
+        </div>
+
+        <div class="form-group producto-motivo-otro-wrap" style="display:none;">
+          <label>Detalle del motivo</label>
+          <textarea
+            class="producto-motivo-otro"
+            rows="2"
+            placeholder="Detalle brevemente el motivo"
+          ></textarea>
+        </div>
+
+        <div class="btn-row">
+          <button
+            class="btn-success"
+            ${disabledAttr}
+            ${disabledTitle}
+            onclick="window.guardarGestionProducto('${escapeAttr(productoFacturaId)}')"
+          >
+            Guardar producto
+          </button>
+
+          <button
+            class="btn-secondary"
+            onclick="window.limpiarGestionProducto('${escapeAttr(productoFacturaId)}')"
+          >
+            Limpiar
+          </button>
+        </div>
       </div>
     </div>
   `;
+}
+
+/**
+ * Selecciona visualmente el estado del producto.
+ */
+export function seleccionarEstadoProducto(productoFacturaId, estado) {
+  if (rutaBloqueadaParaGestion()) {
+    toastEntrega(mensajeRutaBloqueada(), "error");
+    return;
+  }
+
+  const card = buscarCardProducto(productoFacturaId);
+
+  if (!card) {
+    toastEntrega("No se encontró el producto en pantalla.", "error");
+    return;
+  }
+
+  const estadoNormalizado = String(estado || "").trim().toUpperCase();
+
+  if (!Object.values(ESTADOS_PRODUCTO).includes(estadoNormalizado)) {
+    toastEntrega("Estado de producto inválido.", "error");
+    return;
+  }
+
+  card.dataset.estadoSeleccionado = estadoNormalizado;
+
+  card.querySelectorAll(".product-status-btn").forEach(btn => {
+    btn.classList.remove("selected", "active");
+    btn.style.outline = "";
+    btn.style.transform = "";
+  });
+
+  const botones = Array.from(card.querySelectorAll(".product-status-btn"));
+  const botonSeleccionado = botones.find(btn => {
+    const onclick = btn.getAttribute("onclick") || "";
+    return onclick.includes(estadoNormalizado);
+  });
+
+  if (botonSeleccionado) {
+    botonSeleccionado.classList.add("selected", "active");
+    botonSeleccionado.style.outline = "3px solid rgba(15, 23, 42, 0.25)";
+    botonSeleccionado.style.transform = "scale(0.98)";
+  }
+
+  actualizarFormularioProducto(card, estadoNormalizado);
+}
+
+/**
+ * Ajusta campos visibles según estado elegido.
+ */
+function actualizarFormularioProducto(card, estado) {
+  const form = card.querySelector(".producto-form");
+  const ayuda = card.querySelector(".producto-ayuda");
+  const cantidadWrap = card.querySelector(".producto-cantidad-wrap");
+  const motivoWrap = card.querySelector(".producto-motivo-wrap");
+  const motivoOtroWrap = card.querySelector(".producto-motivo-otro-wrap");
+  const cantidadInput = card.querySelector(".producto-cantidad-input");
+  const motivoSelect = card.querySelector(".producto-motivo-select");
+  const motivoOtro = card.querySelector(".producto-motivo-otro");
+
+  if (form) form.style.display = "block";
+
+  if (cantidadWrap) cantidadWrap.style.display = "none";
+  if (motivoWrap) motivoWrap.style.display = "none";
+  if (motivoOtroWrap) motivoOtroWrap.style.display = "none";
+
+  if (cantidadInput) cantidadInput.value = "";
+  if (motivoSelect) motivoSelect.value = "";
+  if (motivoOtro) motivoOtro.value = "";
+
+  if (estado === ESTADOS_PRODUCTO.ENTREGADO_TOTAL) {
+    if (ayuda) {
+      ayuda.innerHTML = "Se marcará como <b>entregado total</b>. No necesita cantidad ni motivo.";
+    }
+    return;
+  }
+
+  if (estado === ESTADOS_PRODUCTO.ENTREGADO_PARCIAL) {
+    if (ayuda) {
+      ayuda.innerHTML = "Entrega parcial: cargue la cantidad entregada y el motivo.";
+    }
+    if (cantidadWrap) cantidadWrap.style.display = "block";
+    if (motivoWrap) motivoWrap.style.display = "block";
+    return;
+  }
+
+  if (estado === ESTADOS_PRODUCTO.RECHAZADO_TOTAL) {
+    if (ayuda) {
+      ayuda.innerHTML = "Rechazo total: indique el motivo del rechazo.";
+    }
+    if (motivoWrap) motivoWrap.style.display = "block";
+    return;
+  }
+
+  if (estado === ESTADOS_PRODUCTO.NO_DESPACHADO) {
+    if (ayuda) {
+      ayuda.innerHTML = "No despachado: indique el motivo.";
+    }
+    if (motivoWrap) motivoWrap.style.display = "block";
+  }
+}
+
+/**
+ * Guarda la gestión del producto sin usar prompts.
+ */
+export async function guardarGestionProducto(productoFacturaId) {
+  if (!validarContextoGestionProducto()) return;
+
+  const card = buscarCardProducto(productoFacturaId);
+
+  if (!card) {
+    toastEntrega("No se encontró el producto en pantalla.", "error");
+    return;
+  }
+
+  const estadoProducto = String(card.dataset.estadoSeleccionado || "").trim().toUpperCase();
+
+  if (!estadoProducto) {
+    toastEntrega("Seleccione el tipo de entrega del producto.", "error");
+    return;
+  }
+
+  let cantidadEntregada = "";
+  let motivo = "";
+
+  if (estadoProducto === ESTADOS_PRODUCTO.ENTREGADO_PARCIAL) {
+    cantidadEntregada = normalizarCantidad(card.querySelector(".producto-cantidad-input")?.value || "");
+
+    if (!cantidadEntregada) {
+      toastEntrega("Ingrese una cantidad entregada válida.", "error");
+      return;
+    }
+  }
+
+  if (
+    estadoProducto === ESTADOS_PRODUCTO.ENTREGADO_PARCIAL ||
+    estadoProducto === ESTADOS_PRODUCTO.RECHAZADO_TOTAL ||
+    estadoProducto === ESTADOS_PRODUCTO.NO_DESPACHADO
+  ) {
+    motivo = obtenerMotivoProducto(card);
+
+    if (!motivo) {
+      toastEntrega("Debe seleccionar o escribir un motivo.", "error");
+      return;
+    }
+  }
+
+  await ejecutarActualizacionProducto({
+    productoFacturaId,
+    estadoProducto,
+    cantidadEntregada,
+    motivo
+  });
+}
+
+/**
+ * Ejecuta actualización de producto contra Apps Script.
+ */
+async function ejecutarActualizacionProducto({
+  productoFacturaId,
+  estadoProducto,
+  cantidadEntregada,
+  motivo
+}) {
+  if (accionProductoPantallaEnCurso) {
+    toastEntrega("Ya hay una gestión de producto en proceso. Aguarde...", "error");
+    return;
+  }
+
+  accionProductoPantallaEnCurso = true;
+
+  try {
+    toastEntrega("Capturando ubicación...");
+
+    const gps = await obtenerGPSSeguro();
+
+    const data = await apiGet({
+      mode: "actualizarProducto",
+      ci: state.ci,
+      chapa: state.chapa,
+      fecha: state.fecha,
+      productoFacturaId,
+      estadoProducto,
+      cantidadEntregada: cantidadEntregada || "",
+      motivo: motivo || "",
+      lat: gps.lat,
+      lng: gps.lng,
+      precision: gps.precision
+    });
+
+    if (!data.ok) {
+      toastEntrega(data.mensaje || "No se pudo actualizar el producto.", "error");
+      return;
+    }
+
+    state.facturasCache = {};
+    state.productosCache = {};
+
+    toastEntrega(data.mensaje || "Producto actualizado.", "ok");
+
+    if (typeof window.refrescarDespuesDeGestion === "function") {
+      await window.refrescarDespuesDeGestion();
+      return;
+    }
+
+    await refrescarParadaActiva();
+
+  } catch (error) {
+    console.error("LOGITRACK guardarGestionProducto error:", error);
+    toastEntrega("Error al actualizar producto:\n" + (error.message || error), "error");
+
+  } finally {
+    accionProductoPantallaEnCurso = false;
+  }
+}
+
+/**
+ * Limpia selección y campos de un producto.
+ */
+export function limpiarGestionProducto(productoFacturaId) {
+  const card = buscarCardProducto(productoFacturaId);
+
+  if (!card) return;
+
+  card.dataset.estadoSeleccionado = "";
+
+  card.querySelectorAll(".product-status-btn").forEach(btn => {
+    btn.classList.remove("selected", "active");
+    btn.style.outline = "";
+    btn.style.transform = "";
+  });
+
+  const form = card.querySelector(".producto-form");
+  const ayuda = card.querySelector(".producto-ayuda");
+  const cantidadInput = card.querySelector(".producto-cantidad-input");
+  const motivoSelect = card.querySelector(".producto-motivo-select");
+  const motivoOtro = card.querySelector(".producto-motivo-otro");
+
+  if (form) form.style.display = "none";
+  if (ayuda) ayuda.textContent = "Seleccione un tipo de entrega.";
+  if (cantidadInput) cantidadInput.value = "";
+  if (motivoSelect) motivoSelect.value = "";
+  if (motivoOtro) motivoOtro.value = "";
 }
 
 /**
@@ -521,6 +893,43 @@ export function setSideBody(html) {
   }
 
   sideBody.innerHTML = html;
+
+  inicializarEventosProductoForm();
+}
+
+/**
+ * Inicializa listeners internos de formularios de producto.
+ */
+function inicializarEventosProductoForm() {
+  document.querySelectorAll(".producto-motivo-select").forEach(select => {
+    select.addEventListener("change", () => {
+      const card = select.closest(".producto-gestion-card");
+      if (!card) return;
+
+      const otroWrap = card.querySelector(".producto-motivo-otro-wrap");
+
+      if (!otroWrap) return;
+
+      otroWrap.style.display = select.value === "Otro" ? "block" : "none";
+    });
+  });
+}
+
+/**
+ * Valida contexto general de gestión.
+ */
+function validarContextoGestionProducto() {
+  if (!state.ci || !state.chapa || !state.fecha) {
+    toastEntrega("No hay una ruta activa. Vuelve a cargar la ruta.", "error");
+    return false;
+  }
+
+  if (rutaBloqueadaParaGestion()) {
+    toastEntrega(mensajeRutaBloqueada(), "error");
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -580,6 +989,73 @@ function renderAvisoModoRuta() {
   }
 
   return "";
+}
+
+/**
+ * Busca card de producto en pantalla.
+ */
+function buscarCardProducto(productoFacturaId) {
+  const id = String(productoFacturaId || "");
+
+  return Array.from(document.querySelectorAll(".producto-gestion-card"))
+    .find(card => String(card.dataset.productoId || "") === id) || null;
+}
+
+/**
+ * Normaliza cantidad entregada.
+ */
+function normalizarCantidad(value) {
+  const raw = String(value || "")
+    .trim()
+    .replace(",", ".");
+
+  if (!raw) return "";
+
+  const numero = Number(raw);
+
+  if (!Number.isFinite(numero) || numero <= 0) {
+    return "";
+  }
+
+  return String(numero);
+}
+
+/**
+ * Obtiene motivo desde select o texto libre.
+ */
+function obtenerMotivoProducto(card) {
+  const select = card.querySelector(".producto-motivo-select");
+  const otro = card.querySelector(".producto-motivo-otro");
+
+  const motivoBase = String(select?.value || "").trim();
+
+  if (motivoBase === "Otro") {
+    return String(otro?.value || "").trim();
+  }
+
+  return motivoBase;
+}
+
+/**
+ * Obtiene GPS de forma controlada.
+ */
+async function obtenerGPSSeguro() {
+  const gps = await obtenerGPS();
+
+  return {
+    lat: gps?.lat ?? "",
+    lng: gps?.lng ?? "",
+    precision: gps?.precision ?? ""
+  };
+}
+
+/**
+ * Crea ID seguro para elementos DOM.
+ */
+function crearIdDom(prefix, value) {
+  return `${prefix}-${String(value || "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .slice(0, 80)}`;
 }
 
 /**
