@@ -6,13 +6,23 @@
 // - Salir / cambiar chofer
 // - Limpiar estado de jornada
 // - Limpiar sesión local guardada
+//
+// Versión 1.6 - Fase 1.2-A:
+// - Bloquea finalizar ruta si está en soloLectura.
+// - Bloquea finalizar ruta si la ruta está cerrada.
+// - Bloquea finalizar ruta si modoConsulta = HISTORICO_CERRADO.
+// - Mantiene HISTORICO_PENDIENTE editable si soloLectura=false.
+// - Evita doble ejecución por doble clic.
+// - Limpia metadata de ruta al cerrar sesión.
 
 import { state } from "../state.js";
-import { apiGet } from "../api.js";
+import { apiGet } from "../api.js?v=1.6";
 import { obtenerGPS } from "../services/gpsService.js";
-import { fechaHoyISO } from "../utils.js";
+import { fechaHoyISO } from "../utils.js?v=1.6";
 
 const SESSION_KEY = "LOGITRACK_SESSION_V1";
+
+let finalizacionEnCurso = false;
 
 /**
  * Registra funciones en window para mantener compatibilidad
@@ -24,6 +34,9 @@ export function registrarRutaActions() {
   window.salir = salir;
   window.cerrarSesion = cerrarSesion;
   window.limpiarEstadoRuta = limpiarEstadoRuta;
+
+  window.rutaBloqueadaParaFinalizar = rutaBloqueadaParaFinalizar;
+  window.validarContextoRutaGeneral = validarContextoRuta;
 }
 
 /**
@@ -51,16 +64,28 @@ export async function refrescarRuta() {
 export async function finalizarRuta() {
   if (!validarContextoRuta()) return;
 
+  if (rutaBloqueadaParaFinalizar()) {
+    toastRuta(mensajeRutaBloqueada(), "error");
+    return;
+  }
+
+  if (finalizacionEnCurso) {
+    toastRuta("La finalización de ruta ya está en proceso. Aguarde...", "error");
+    return;
+  }
+
   const confirmar = confirm(
     "¿Desea finalizar la ruta?\n\nSolo se permitirá si no existen paradas, facturas o productos pendientes."
   );
 
   if (!confirmar) return;
 
+  finalizacionEnCurso = true;
+
   try {
     toastRuta("Validando pendientes...");
 
-    const gps = await obtenerGPS();
+    const gps = await obtenerGPSSeguro();
 
     const data = await apiGet({
       mode: "finalizarRuta",
@@ -83,6 +108,9 @@ export async function finalizarRuta() {
       return;
     }
 
+    state.rutaCerrada = true;
+    state.soloLectura = true;
+
     toastRuta(data.mensaje || "Ruta cerrada correctamente.", "ok");
 
     if (typeof window.cargarRutaChofer === "function") {
@@ -90,7 +118,11 @@ export async function finalizarRuta() {
     }
 
   } catch (error) {
-    toastRuta("Error al finalizar ruta:\n" + error.message, "error");
+    console.error("LOGITRACK finalizarRuta error:", error);
+    toastRuta("Error al finalizar ruta:\n" + (error.message || error), "error");
+
+  } finally {
+    finalizacionEnCurso = false;
   }
 }
 
@@ -160,6 +192,10 @@ function cerrarPanelesVisuales() {
     window.cerrarPanel();
   }
 
+  if (typeof window.cerrarTodoPanel === "function") {
+    window.cerrarTodoPanel();
+  }
+
   const sidePanel = document.getElementById("sidePanel");
 
   if (sidePanel) {
@@ -187,6 +223,7 @@ function limpiarVistasVisuales() {
   const inicioContent = document.getElementById("inicioContent");
   const rutaContent = document.getElementById("rutaContent");
   const cierreContent = document.getElementById("cierreContent");
+  const mapaContent = document.getElementById("mapaContent");
   const sideBody = document.getElementById("sideBody");
   const sideTitle = document.getElementById("sideTitle");
   const sideSubtitle = document.getElementById("sideSubtitle");
@@ -197,6 +234,7 @@ function limpiarVistasVisuales() {
   if (inicioContent) inicioContent.innerHTML = "";
   if (rutaContent) rutaContent.innerHTML = "";
   if (cierreContent) cierreContent.innerHTML = "";
+  if (mapaContent) mapaContent.innerHTML = "";
   if (sideBody) sideBody.innerHTML = "";
   if (sideTitle) sideTitle.textContent = "Detalle";
   if (sideSubtitle) sideSubtitle.textContent = "";
@@ -227,6 +265,9 @@ function limpiarNavVisual() {
   document.querySelectorAll(".app-view").forEach(view => {
     view.classList.remove("active");
   });
+
+  const inicioView = document.getElementById("viewInicio");
+  if (inicioView) inicioView.classList.add("active");
 }
 
 /**
@@ -288,9 +329,17 @@ export function limpiarEstadoRuta() {
   state.ultimaUbicacion = null;
   state.trackingActivo = false;
 
+  state.modoConsulta = "OPERATIVO";
+  state.soloLectura = false;
+  state.codigoRuta = "";
+  state.fuenteDatos = "";
+  state.rutaCerrada = false;
+
   state.cargandoRuta = false;
   state.ultimaSincronizacion = null;
   state.errorActual = null;
+
+  finalizacionEnCurso = false;
 }
 
 /**
@@ -303,6 +352,60 @@ function validarContextoRuta() {
   }
 
   return true;
+}
+
+/**
+ * Determina si la ruta está bloqueada para finalizar.
+ *
+ * Reglas:
+ * - OPERATIVO: permite finalizar.
+ * - HISTORICO_PENDIENTE + soloLectura=false: permite finalizar.
+ * - HISTORICO_CERRADO: bloquea.
+ * - soloLectura=true: bloquea.
+ * - rutaCerrada=true: bloquea.
+ */
+function rutaBloqueadaParaFinalizar() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  return Boolean(
+    state.soloLectura === true ||
+    state.rutaCerrada === true ||
+    modo === "HISTORICO_CERRADO"
+  );
+}
+
+/**
+ * Mensaje visible cuando la ruta no permite finalizar.
+ */
+function mensajeRutaBloqueada() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  if (modo === "HISTORICO_CERRADO") {
+    return "Esta ruta histórica ya está cerrada. Solo se permite consultar.";
+  }
+
+  if (state.rutaCerrada) {
+    return "La ruta ya está cerrada. No se puede finalizar nuevamente.";
+  }
+
+  if (state.soloLectura) {
+    return "La ruta está en modo solo lectura. No se puede finalizar.";
+  }
+
+  return "La ruta no permite cierre en este momento.";
+}
+
+/**
+ * Obtiene GPS de forma controlada.
+ */
+async function obtenerGPSSeguro() {
+  const gps = await obtenerGPS();
+
+  return {
+    lat: gps?.lat ?? "",
+    lng: gps?.lng ?? "",
+    precision: gps?.precision ?? ""
+  };
 }
 
 /**
