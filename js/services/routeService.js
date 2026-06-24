@@ -5,10 +5,20 @@
 // - Calcular avance de ruta
 // - Filtrar, buscar y ordenar paradas
 // - Cargar facturas y productos relacionados
+//
+// Versión 1.6:
+// - Fuerza carga actualizada de api.js y utils.js
+// - Respeta respuesta histórica de Apps Script
+// - Guarda modoConsulta y soloLectura en state si existen
+// - Mejora diagnóstico cuando la API devuelve ok:false
 
 import { state } from "../state.js";
-import { apiGet } from "../api.js";
-import { cleanEstado, toNumber } from "../utils.js";
+import { apiGet } from "../api.js?v=1.6";
+import {
+  cleanEstado,
+  toNumber,
+  normalizarFechaISO
+} from "../utils.js?v=1.6";
 
 /**
  * Registra funciones globales útiles mientras seguimos migrando módulos.
@@ -17,15 +27,18 @@ export function registrarRouteService() {
   window.calcularEstadoRuta = calcularEstadoRuta;
   window.buscarParadaPorClaves = buscarParadaPorClaves;
   window.obtenerParadasFiltradas = obtenerParadasFiltradas;
+  window.cargarRutaDesdeAPI = cargarRutaDesdeAPI;
 }
 
 /**
  * Carga la ruta del chofer desde Apps Script.
  */
 export async function cargarRutaDesdeAPI({ ci, chapa, fecha }) {
-  const ciLimpio = String(ci || "").trim();
-  const chapaLimpia = String(chapa || "").trim().toUpperCase();
-  const fechaLimpia = String(fecha || "").trim();
+  const ciLimpio = String(ci || "").trim().replace(/\D/g, "");
+  const chapaLimpia = String(chapa || "").trim().toUpperCase().replace(/\s+/g, "");
+  const fechaLimpia = normalizarFechaISO
+    ? normalizarFechaISO(fecha || "")
+    : String(fecha || "").trim();
 
   if (!ciLimpio || !chapaLimpia || !fechaLimpia) {
     return {
@@ -41,10 +54,13 @@ export async function cargarRutaDesdeAPI({ ci, chapa, fecha }) {
     fecha: fechaLimpia
   });
 
+  console.log("LOGITRACK loginRuta respuesta:", data);
+
   if (!data.ok) {
     return {
       ok: false,
       mensaje: data.mensaje || "No se pudo cargar la ruta.",
+      codigo: data.codigo || "",
       raw: data
     };
   }
@@ -52,13 +68,17 @@ export async function cargarRutaDesdeAPI({ ci, chapa, fecha }) {
   aplicarDatosRuta({
     ci: ciLimpio,
     chapa: chapaLimpia,
-    fecha: fechaLimpia,
+    fecha: data.fechaRuta || fechaLimpia,
     data
   });
 
   return {
     ok: true,
     mensaje: data.mensaje || "Ruta cargada correctamente.",
+    codigo: data.codigo || "RUTA_ENCONTRADA",
+    modoConsulta: data.modoConsulta || "OPERATIVO",
+    soloLectura: Boolean(data.soloLectura),
+    fechaRuta: data.fechaRuta || fechaLimpia,
     chofer: state.chofer,
     movil: state.movil,
     resumen: state.resumen,
@@ -73,12 +93,23 @@ export async function cargarRutaDesdeAPI({ ci, chapa, fecha }) {
 export function aplicarDatosRuta({ ci, chapa, fecha, data }) {
   state.ci = ci || "";
   state.chapa = chapa || "";
-  state.fecha = fecha || "";
+  state.fecha = data.fechaRuta || fecha || "";
 
   state.chofer = data.chofer || null;
   state.movil = data.movil || null;
   state.resumen = data.resumen || {};
   state.paradas = Array.isArray(data.data) ? data.data : [];
+
+  /*
+    Campos nuevos del backend:
+    - OPERATIVO
+    - HISTORICO_PENDIENTE
+    - HISTORICO_CERRADO
+  */
+  state.modoConsulta = data.modoConsulta || "OPERATIVO";
+  state.soloLectura = Boolean(data.soloLectura);
+  state.codigoRuta = data.codigo || "";
+  state.fuenteDatos = data.fuenteDatos || "";
 
   state.paradasMap = construirParadasMap(state.paradas);
 
@@ -184,7 +215,9 @@ export function calcularEstadoRuta() {
     parciales,
     rechazados,
     gestionados,
-    avance
+    avance,
+    modoConsulta: state.modoConsulta || "OPERATIVO",
+    soloLectura: Boolean(state.soloLectura)
   };
 }
 
