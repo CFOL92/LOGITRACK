@@ -1,6 +1,18 @@
 // LOGITRACK - state.js
 // Estado global centralizado de la aplicación.
 // Todos los módulos leen y actualizan este objeto compartido.
+//
+// Versión 1.6:
+// - Agrega control de modoConsulta.
+// - Agrega bloqueo por soloLectura.
+// - Agrega metadata de ruta histórica / operativa.
+// - Prepara Fase 1.2-A: blindaje de rutas históricas cerradas.
+
+export const MODOS_CONSULTA = {
+  OPERATIVO: "OPERATIVO",
+  HISTORICO_PENDIENTE: "HISTORICO_PENDIENTE",
+  HISTORICO_CERRADO: "HISTORICO_CERRADO"
+};
 
 export const INITIAL_STATE = {
   // Datos de acceso / ruta activa
@@ -18,6 +30,13 @@ export const INITIAL_STATE = {
   // Datos operativos
   paradas: [],
   paradasMap: {},
+
+  // Metadata de ruta / backend
+  modoConsulta: MODOS_CONSULTA.OPERATIVO,
+  soloLectura: false,
+  codigoRuta: "",
+  fuenteDatos: "",
+  rutaCerrada: false,
 
   // Cache local para evitar llamadas repetidas
   facturasCache: {},
@@ -54,16 +73,25 @@ export const state = crearEstadoInicial();
 export function crearEstadoInicial() {
   return {
     ...INITIAL_STATE,
+
+    // Referencias nuevas para evitar que queden arrays/objetos compartidos.
     paradas: [],
     paradasMap: {},
     facturasCache: {},
     productosCache: {},
+
     resumen: null,
     chofer: null,
     movil: null,
     paradaActiva: null,
     facturaActiva: null,
-    ultimaUbicacion: null
+    ultimaUbicacion: null,
+
+    modoConsulta: MODOS_CONSULTA.OPERATIVO,
+    soloLectura: false,
+    codigoRuta: "",
+    fuenteDatos: "",
+    rutaCerrada: false
   };
 }
 
@@ -96,12 +124,22 @@ export function limpiarDatosRuta() {
   state.chofer = null;
   state.movil = null;
   state.resumen = null;
+
   state.paradas = [];
   state.paradasMap = {};
+
   state.facturasCache = {};
   state.productosCache = {};
+
   state.paradaActiva = null;
   state.facturaActiva = null;
+
+  state.modoConsulta = MODOS_CONSULTA.OPERATIVO;
+  state.soloLectura = false;
+  state.codigoRuta = "";
+  state.fuenteDatos = "";
+  state.rutaCerrada = false;
+
   state.errorActual = null;
 }
 
@@ -149,9 +187,88 @@ export function hayRutaActiva() {
 }
 
 /**
+ * Indica si la ruta actual es operativa.
+ */
+export function esRutaOperativa() {
+  return state.modoConsulta === MODOS_CONSULTA.OPERATIVO && !state.soloLectura;
+}
+
+/**
+ * Indica si la ruta actual es histórica pendiente.
+ * En este modo se puede permitir gestión si soloLectura=false.
+ */
+export function esRutaHistoricaPendiente() {
+  return state.modoConsulta === MODOS_CONSULTA.HISTORICO_PENDIENTE;
+}
+
+/**
+ * Indica si la ruta actual es histórica cerrada.
+ */
+export function esRutaHistoricaCerrada() {
+  return state.modoConsulta === MODOS_CONSULTA.HISTORICO_CERRADO;
+}
+
+/**
+ * Indica si la ruta debe bloquear acciones operativas.
+ *
+ * Se debe usar para bloquear:
+ * - Entregar producto
+ * - Rechazar producto
+ * - Confirmar factura
+ * - No despachado
+ * - Finalizar ruta
+ */
+export function rutaBloqueadaParaGestion() {
+  return Boolean(
+    state.soloLectura ||
+    state.rutaCerrada ||
+    state.modoConsulta === MODOS_CONSULTA.HISTORICO_CERRADO
+  );
+}
+
+/**
+ * Devuelve descripción visible del modo de ruta.
+ */
+export function getLabelModoConsulta() {
+  if (state.modoConsulta === MODOS_CONSULTA.HISTORICO_PENDIENTE) {
+    return "Ruta histórica pendiente";
+  }
+
+  if (state.modoConsulta === MODOS_CONSULTA.HISTORICO_CERRADO) {
+    return "Ruta histórica cerrada";
+  }
+
+  return "Ruta activa";
+}
+
+/**
+ * Devuelve clase CSS sugerida para mostrar el estado de ruta.
+ */
+export function getClaseModoConsulta() {
+  if (state.modoConsulta === MODOS_CONSULTA.HISTORICO_PENDIENTE) {
+    return "historico-pendiente";
+  }
+
+  if (state.modoConsulta === MODOS_CONSULTA.HISTORICO_CERRADO) {
+    return "historico-cerrado";
+  }
+
+  return "operativo";
+}
+
+/**
  * Registra helpers en window para depuración desde consola.
  */
 export function registrarStateService() {
   window.LOGITRACK_STATE = state;
   window.resetLogitrackState = resetState;
+
+  window.LOGITRACK_MODOS_CONSULTA = MODOS_CONSULTA;
+
+  window.hayRutaActiva = hayRutaActiva;
+  window.esRutaOperativa = esRutaOperativa;
+  window.esRutaHistoricaPendiente = esRutaHistoricaPendiente;
+  window.esRutaHistoricaCerrada = esRutaHistoricaCerrada;
+  window.rutaBloqueadaParaGestion = rutaBloqueadaParaGestion;
+  window.getLabelModoConsulta = getLabelModoConsulta;
 }
