@@ -6,19 +6,29 @@
 // - Refresca tamaño de Leaflet
 // - Redibuja paradas
 // - Actualiza resumen visual del chofer/ruta
+//
+// Versión 1.7:
+// - Corrige visualización del mapa solo en vista Mapa.
+// - Evita que el mapa quede visible en Inicio/Ruta/Cierre.
+// - Usa mostrarMapa() del mapService.
+// - Usa centrarMapaRuta() del mapService.
+// - Actualiza estado visual de ruta histórica / solo lectura.
+// - Deshabilita botón Finalizar ruta si la ruta está bloqueada.
 
 import { state } from "../state.js";
+
 import {
   dibujarMapa,
   refrescarTamanioMapa,
-  centrarMapaEnRuta
-} from "../services/mapService.js";
+  centrarMapaRuta,
+  mostrarMapa
+} from "../services/mapService.js?v=1.7";
 
 import {
   formatoNum,
   escapeHtml,
   toNumber
-} from "../utils.js";
+} from "../utils.js?v=1.7";
 
 /**
  * Registra funciones globales para mantener compatibilidad
@@ -31,6 +41,7 @@ export function registrarMapaView() {
   window.centrarMapaRutaDesdeVista = centrarMapaRutaDesdeVista;
   window.irARutaDesdeMapa = irARutaDesdeMapa;
   window.irACierreDesdeMapa = irACierreDesdeMapa;
+  window.ocultarTopPanel = ocultarTopPanel;
 }
 
 /**
@@ -44,9 +55,7 @@ export function renderMapa() {
     return;
   }
 
-  actualizarPanelMapa();
-  refrescarTamanioMapa();
-  dibujarMapa();
+  activarVistaMapa();
 }
 
 /**
@@ -54,6 +63,15 @@ export function renderMapa() {
  * Esta función será llamada desde main.js cuando vista === "mapa".
  */
 export function activarVistaMapa() {
+  if (!state.ci || !state.chapa || !state.fecha) {
+    toastMapaView("No hay ruta cargada para mostrar en el mapa.", "error");
+    return;
+  }
+
+  state.vistaActiva = "mapa";
+
+  activarBodyMapa();
+  mostrarMapaVisual();
   ocultarAppShell();
   mostrarTopPanel();
   activarNavMapa();
@@ -63,7 +81,7 @@ export function activarVistaMapa() {
   setTimeout(() => {
     refrescarTamanioMapa();
     dibujarMapa();
-  }, 150);
+  }, 180);
 }
 
 /**
@@ -83,14 +101,15 @@ export function actualizarPanelMapa() {
   const statPallets = document.getElementById("statPallets");
 
   if (driverName) {
-    driverName.textContent = chofer.chofer || "Chofer";
+    driverName.textContent = chofer.chofer || chofer.nombre || "Chofer";
   }
 
   if (driverMeta) {
     driverMeta.innerHTML =
       `CI: ${escapeHtml(chofer.ci || state.ci || "")}<br>` +
       `Transportadora: ${escapeHtml(chofer.transportadora || "")}<br>` +
-      `Chapa: ${escapeHtml(movil.chapa || state.chapa || "")} | Fecha: ${escapeHtml(state.fecha || "")}`;
+      `Chapa: ${escapeHtml(movil.chapa || state.chapa || "")} | Fecha: ${escapeHtml(state.fecha || "")}<br>` +
+      `${renderTextoModoRuta()}`;
   }
 
   if (statPuntos) {
@@ -108,6 +127,9 @@ export function actualizarPanelMapa() {
   if (statPallets) {
     statPallets.textContent = formatoNum.format(toNumber(resumen.totalPallets));
   }
+
+  actualizarRoutePillMapa();
+  actualizarBotonesPanelMapa();
 }
 
 /**
@@ -119,7 +141,11 @@ export function centrarMapaRutaDesdeVista() {
     return;
   }
 
-  centrarMapaEnRuta();
+  centrarMapaRuta();
+
+  setTimeout(() => {
+    refrescarTamanioMapa();
+  }, 100);
 }
 
 /**
@@ -131,6 +157,8 @@ export function irARutaDesdeMapa() {
     return;
   }
 
+  desactivarBodyMapa();
+  ocultarMapaVisual();
   ocultarTopPanel();
   mostrarAppShell();
 }
@@ -144,8 +172,51 @@ export function irACierreDesdeMapa() {
     return;
   }
 
+  desactivarBodyMapa();
+  ocultarMapaVisual();
   ocultarTopPanel();
   mostrarAppShell();
+}
+
+/**
+ * Activa clase visual global para mostrar mapa.
+ */
+function activarBodyMapa() {
+  document.body.classList.add("mapa-activo");
+}
+
+/**
+ * Desactiva clase visual global del mapa.
+ */
+function desactivarBodyMapa() {
+  document.body.classList.remove("mapa-activo");
+}
+
+/**
+ * Muestra mapa físico.
+ */
+function mostrarMapaVisual() {
+  if (typeof mostrarMapa === "function") {
+    mostrarMapa();
+    return;
+  }
+
+  const mapEl = document.getElementById("map");
+
+  if (mapEl) {
+    mapEl.style.display = "block";
+  }
+}
+
+/**
+ * Oculta mapa físico.
+ */
+function ocultarMapaVisual() {
+  const mapEl = document.getElementById("map");
+
+  if (mapEl) {
+    mapEl.style.display = "none";
+  }
 }
 
 /**
@@ -205,6 +276,111 @@ function activarNavMapa() {
   if (navMapa) {
     navMapa.classList.add("active");
   }
+}
+
+/**
+ * Actualiza etiqueta visual superior de estado de ruta.
+ */
+function actualizarRoutePillMapa() {
+  const routePill = document.getElementById("appRouteStatus");
+
+  if (!routePill) return;
+
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  routePill.classList.remove("historico-pendiente", "historico-cerrado", "solo-lectura", "operativo");
+
+  if (modo === "HISTORICO_PENDIENTE" && !rutaBloqueadaParaGestion()) {
+    routePill.textContent = "RUTA HISTÓRICA PENDIENTE";
+    routePill.classList.add("historico-pendiente");
+    return;
+  }
+
+  if (modo === "HISTORICO_CERRADO") {
+    routePill.textContent = "RUTA HISTÓRICA CERRADA";
+    routePill.classList.add("historico-cerrado");
+    return;
+  }
+
+  if (state.soloLectura || state.rutaCerrada) {
+    routePill.textContent = "SOLO LECTURA";
+    routePill.classList.add("solo-lectura");
+    return;
+  }
+
+  routePill.textContent = "RUTA ACTIVA";
+  routePill.classList.add("operativo");
+}
+
+/**
+ * Deshabilita botones operativos del panel mapa si corresponde.
+ */
+function actualizarBotonesPanelMapa() {
+  const btnFinalizar = document.getElementById("btnFinalizarRuta");
+
+  if (!btnFinalizar) return;
+
+  const bloqueado = rutaBloqueadaParaGestion();
+
+  btnFinalizar.disabled = bloqueado;
+  btnFinalizar.title = bloqueado
+    ? mensajeRutaBloqueada()
+    : "Finalizar ruta";
+}
+
+/**
+ * Texto adicional del modo de ruta dentro del panel.
+ */
+function renderTextoModoRuta() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  if (modo === "HISTORICO_PENDIENTE" && !rutaBloqueadaParaGestion()) {
+    return `<span style="color:#b45309;font-weight:700;">Modo: Ruta histórica pendiente editable</span>`;
+  }
+
+  if (modo === "HISTORICO_CERRADO") {
+    return `<span style="color:#991b1b;font-weight:700;">Modo: Ruta histórica cerrada</span>`;
+  }
+
+  if (state.soloLectura || state.rutaCerrada) {
+    return `<span style="color:#991b1b;font-weight:700;">Modo: Solo lectura</span>`;
+  }
+
+  return `<span style="color:#166534;font-weight:700;">Modo: Operativo</span>`;
+}
+
+/**
+ * Indica si la ruta debe bloquear acciones.
+ */
+function rutaBloqueadaParaGestion() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  return Boolean(
+    state.soloLectura === true ||
+    state.rutaCerrada === true ||
+    modo === "HISTORICO_CERRADO"
+  );
+}
+
+/**
+ * Mensaje de bloqueo.
+ */
+function mensajeRutaBloqueada() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  if (modo === "HISTORICO_CERRADO") {
+    return "Ruta histórica cerrada. Solo consulta.";
+  }
+
+  if (state.rutaCerrada) {
+    return "Ruta cerrada. No permite modificaciones.";
+  }
+
+  if (state.soloLectura) {
+    return "Ruta en solo lectura. No permite modificaciones.";
+  }
+
+  return "Ruta bloqueada para gestión.";
 }
 
 /**
