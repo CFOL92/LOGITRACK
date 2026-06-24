@@ -1,8 +1,38 @@
 /* LOGITRACK - mapa.css */
+/* Versión 1.7
+   - El mapa queda oculto por defecto.
+   - Solo se muestra cuando body tiene la clase .mapa-activo.
+   - Evita que Leaflet quede visible detrás de Inicio/Ruta/Cierre.
+   - Ajusta controles para móvil y menú inferior.
+*/
 
+/* Contenedor principal del mapa */
 #map {
+  display: none;
+  position: fixed;
+  inset: 0;
   height: 100vh;
+  height: 100dvh;
   width: 100%;
+  background: #cbd5e1;
+  z-index: 1;
+}
+
+/* El mapa solo aparece en vista Mapa */
+body.mapa-activo #map {
+  display: block;
+}
+
+/* Evita selección accidental en mapa */
+#map * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Ajuste para que los tiles de Leaflet ocupen todo el contenedor */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  font-family: inherit;
   background: #cbd5e1;
 }
 
@@ -29,6 +59,7 @@
      1px -1px 0 #fff,
      1px  1px 0 #fff,
     -1px  1px 0 #fff;
+  pointer-events: none;
 }
 
 /* Control visual de etiquetas según zoom */
@@ -93,6 +124,8 @@
   padding: 12px 14px;
   font-size: 12px;
   font-weight: 900;
+  border: none;
+  cursor: pointer;
 }
 
 .popup-btn:hover {
@@ -111,7 +144,57 @@
   font-weight: 900;
 }
 
+/* Deja el control de zoom por encima del menú inferior */
+.leaflet-bottom .leaflet-control {
+  margin-bottom: 86px;
+}
+
+.leaflet-right .leaflet-control {
+  margin-right: 12px;
+}
+
 /* Ubicación actual del chofer */
 .leaflet-interactive {
   outline: none;
+}
+
+/* Mejoras móviles del popup */
+@media (max-width: 520px) {
+  .leaflet-popup-content {
+    width: 270px !important;
+  }
+
+  .popup-card {
+    padding: 12px;
+  }
+
+  .popup-title {
+    font-size: 13px;
+  }
+
+  .popup-meta {
+    font-size: 10.5px;
+  }
+
+  .popup-btn {
+    padding: 11px 12px;
+    font-size: 11px;
+  }
+
+  .leaflet-bottom .leaflet-control {
+    margin-bottom: 92px;
+  }
+}
+
+/* Cuando el mapa está activo, asegurar que panel superior y menú queden encima */
+body.mapa-activo .top-panel {
+  z-index: 30;
+}
+
+body.mapa-activo .bottom-nav {
+  z-index: 40;
+}
+
+body.mapa-activo .toast {
+  z-index: 80;
 }
