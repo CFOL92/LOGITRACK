@@ -1,80 +1,85 @@
 // LOGITRACK - main.js
 // Punto central de arranque de la aplicación modular.
-// Versión 1.6:
-// - Fuerza recarga de módulos principales con query ?v=1.6
-// - Mantiene state/config/utils sin query para evitar duplicar estado interno
-// - Conecta configuración, API, estado, servicios, vistas, acciones y navegación
+//
+// Versión 1.7:
+// - Fuerza recarga de módulos principales con query ?v=1.7.
+// - Mantiene state/config/utils base sin query para evitar duplicar estado interno.
+// - Integra blindaje visual y lógico de Fase 1.2-A.
+// - Expone diagnóstico global para consola.
+// - Mejora control de conexión online/offline.
 
 import { APP_CONFIG } from "./config.js";
 import { state } from "./state.js";
 
 import { registrarUtils } from "./utils.js";
 
-import { registrarApiService, verificarConexionAPI } from "./api.js?v=1.6";
+import { registrarApiService, verificarConexionAPI } from "./api.js?v=1.7";
 
 import {
   initMap,
   registrarMapService,
   dibujarMapa,
   refrescarTamanioMapa
-} from "./services/mapService.js?v=1.6";
+} from "./services/mapService.js?v=1.7";
 
 import {
   registrarGpsService
-} from "./services/gpsService.js?v=1.6";
+} from "./services/gpsService.js?v=1.7";
 
 import {
   registrarRouteService
-} from "./services/routeService.js?v=1.6";
+} from "./services/routeService.js?v=1.7";
 
 import {
   registrarLoginView,
   inicializarLogin,
   cargarRutaChofer,
   actualizarPanelChofer
-} from "./views/loginView.js?v=1.6";
+} from "./views/loginView.js?v=1.7";
 
 import {
   registrarInicioView,
   renderInicio,
   actualizarAppHeader
-} from "./views/inicioView.js?v=1.6";
+} from "./views/inicioView.js?v=1.7";
 
 import {
   registrarRutaView,
   renderRuta
-} from "./views/rutaView.js?v=1.6";
+} from "./views/rutaView.js?v=1.7";
 
 import {
   registrarMapaView,
   activarVistaMapa,
   ocultarTopPanel,
   actualizarPanelMapa
-} from "./views/mapaView.js?v=1.6";
+} from "./views/mapaView.js?v=1.7";
 
 import {
   registrarCierreView,
   renderCierre
-} from "./views/cierreView.js?v=1.6";
+} from "./views/cierreView.js?v=1.7";
 
 import {
   registrarEntregaView,
   abrirParada,
   verProductos,
   cerrarPanel
-} from "./views/entregaView.js?v=1.6";
+} from "./views/entregaView.js?v=1.7";
 
 import {
   registrarFacturaActions
-} from "./actions/facturaActions.js?v=1.6";
+} from "./actions/facturaActions.js?v=1.7";
 
 import {
   registrarProductoActions
-} from "./actions/productoActions.js?v=1.6";
+} from "./actions/productoActions.js?v=1.7";
 
 import {
   registrarRutaActions
-} from "./actions/rutaActions.js?v=1.6";
+} from "./actions/rutaActions.js?v=1.7";
+
+const FRONTEND_BUILD = "v1.7";
 
 /**
  * Arranque principal.
@@ -93,6 +98,7 @@ function inicializarAplicacion() {
     inicializarMapa();
     configurarEventosBase();
     configurarErroresGlobales();
+    configurarEventosConexion();
     verificarConexionInicial();
 
     /*
@@ -103,11 +109,11 @@ function inicializarAplicacion() {
     inicializarLogin();
 
     console.info(`${APP_CONFIG.nombre} ${APP_CONFIG.version} inicializado correctamente.`);
-    console.info("LOGITRACK frontend build: v1.6");
+    console.info(`LOGITRACK frontend build: ${FRONTEND_BUILD}`);
 
   } catch (error) {
     console.error("Error al inicializar LOGITRACK:", error);
-    toastMain("Error al inicializar LOGITRACK:\n" + error.message, "error");
+    toastMain("Error al inicializar LOGITRACK:\n" + (error.message || error), "error");
   }
 }
 
@@ -119,8 +125,10 @@ function configurarVentanaGlobal() {
   window.LOGITRACK = {
     app: APP_CONFIG,
     state,
-    build: "v1.6"
+    build: FRONTEND_BUILD
   };
+
+  window.LOGITRACK_FRONTEND_BUILD = FRONTEND_BUILD;
 
   window.cambiarVista = cambiarVista;
   window.renderApp = renderApp;
@@ -129,6 +137,8 @@ function configurarVentanaGlobal() {
   window.cerrarTodoPanel = cerrarTodoPanel;
   window.refrescarMapaVisual = refrescarMapaVisual;
   window.toast = toastMain;
+
+  window.diagnosticoLogitrack = diagnosticoLogitrack;
 }
 
 /**
@@ -201,10 +211,51 @@ function configurarErroresGlobales() {
 }
 
 /**
+ * Controla eventos de conexión del navegador.
+ */
+function configurarEventosConexion() {
+  window.addEventListener("online", () => {
+    actualizarEstadoConexionVisual(true);
+    toastMain("Conexión restablecida.", "ok");
+    verificarConexionInicial();
+  });
+
+  window.addEventListener("offline", () => {
+    actualizarEstadoConexionVisual(false);
+    toastMain("Sin conexión a internet.", "error");
+  });
+
+  actualizarEstadoConexionVisual(navigator.onLine);
+}
+
+/**
+ * Actualiza indicador visual de conexión.
+ */
+function actualizarEstadoConexionVisual(online) {
+  const apiStatus = document.getElementById("apiStatus");
+
+  if (!apiStatus) return;
+
+  if (!online) {
+    apiStatus.textContent = "API: SIN CONEXIÓN";
+    return;
+  }
+
+  if (!apiStatus.textContent || apiStatus.textContent === "API: SIN CONEXIÓN") {
+    apiStatus.textContent = "API: CONECTANDO...";
+  }
+}
+
+/**
  * Verifica API al iniciar.
  */
 async function verificarConexionInicial() {
   const apiStatus = document.getElementById("apiStatus");
+
+  if (!navigator.onLine) {
+    if (apiStatus) apiStatus.textContent = "API: SIN CONEXIÓN";
+    return;
+  }
 
   try {
     const result = await verificarConexionAPI();
@@ -214,6 +265,8 @@ async function verificarConexionInicial() {
     }
 
   } catch (error) {
+    console.error("Error verificando API:", error);
+
     if (apiStatus) {
       apiStatus.textContent = "API: ERROR";
     }
@@ -325,7 +378,9 @@ export function renderApp() {
  */
 export async function refrescarDespuesDeGestion() {
   const vistaAnterior = state.vistaActiva || "ruta";
+
   const facturaAnterior = state.facturaActiva;
+
   const paradaAnterior = state.paradaActiva
     ? {
         ParadaID: state.paradaActiva.ParadaID || "",
@@ -354,7 +409,8 @@ export async function refrescarDespuesDeGestion() {
     }
 
   } catch (error) {
-    toastMain("Error al refrescar datos:\n" + error.message, "error");
+    console.error("LOGITRACK refrescarDespuesDeGestion error:", error);
+    toastMain("Error al refrescar datos:\n" + (error.message || error), "error");
   }
 }
 
@@ -371,6 +427,40 @@ export function cerrarTodoPanel() {
 export function refrescarMapaVisual() {
   refrescarTamanioMapa();
   dibujarMapa();
+}
+
+/**
+ * Diagnóstico rápido desde consola.
+ */
+function diagnosticoLogitrack() {
+  const data = {
+    build: FRONTEND_BUILD,
+    appVersion: APP_CONFIG.version,
+    online: navigator.onLine,
+    vistaActiva: state.vistaActiva,
+    ci: state.ci,
+    chapa: state.chapa,
+    fecha: state.fecha,
+    modoConsulta: state.modoConsulta || "OPERATIVO",
+    soloLectura: Boolean(state.soloLectura),
+    rutaCerrada: Boolean(state.rutaCerrada),
+    codigoRuta: state.codigoRuta || "",
+    fuenteDatos: state.fuenteDatos || "",
+    totalParadas: Array.isArray(state.paradas) ? state.paradas.length : 0,
+    paradaActiva: state.paradaActiva
+      ? {
+          ParadaID: state.paradaActiva.ParadaID || "",
+          CodBoca: state.paradaActiva.CodBoca || "",
+          RutaID: state.paradaActiva.RutaID || ""
+        }
+      : null,
+    facturaActiva: state.facturaActiva || null,
+    apiUrl: window.LOGITRACK_SHEET_API || null,
+    lastApiUrl: window.LOGITRACK_LAST_API_URL || null
+  };
+
+  console.table(data);
+  return data;
 }
 
 /**
