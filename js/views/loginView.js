@@ -1,11 +1,13 @@
 // LOGITRACK - loginView.js
 // Vista Login:
-// - Inicializa fecha actual
+// - Inicializa fecha actual Paraguay
 // - Verifica conexión con API
 // - Carga ruta del chofer
 // - Mantiene sesión activa con localStorage
-// - Si la fecha guardada no es hoy, consulta automáticamente la ruta de hoy
-// - Muestra mensajes diferenciados para ruta de hoy e histórico
+// - Autocarga siempre intenta con fecha de hoy
+// - Consulta manual respeta la fecha elegida por el usuario
+// - Permite consultar rutas históricas si existen en backend
+// - Muestra mensajes diferenciados para hoy, histórico y fecha futura
 // - Oculta login y habilita la app
 // - Actualiza paneles iniciales
 
@@ -16,7 +18,14 @@ import { dibujarMapa } from "../services/mapService.js";
 import {
   escapeHtml,
   formatoNum,
-  fechaHoyISO
+  fechaHoyISO,
+  normalizarFechaISO,
+  mensajeSinRutaPorFecha,
+  normalizarCI,
+  normalizarChapa,
+  storageGet,
+  storageSet,
+  storageRemove
 } from "../utils.js";
 
 const SESSION_KEY = "LOGITRACK_SESSION_V1";
@@ -33,6 +42,7 @@ export function registrarLoginView() {
   window.actualizarPanelChofer = actualizarPanelChofer;
   window.guardarSesionActiva = guardarSesionActiva;
   window.limpiarSesionActiva = limpiarSesionActiva;
+  window.leerSesionActiva = leerSesionActiva;
 }
 
 /**
@@ -48,18 +58,23 @@ export function inicializarLogin() {
 
   verificarAPI();
 
+  /*
+    Se restaura después de registrar módulos y tener el DOM listo.
+    La autocarga siempre consulta HOY, no una fecha vieja.
+  */
   setTimeout(() => {
     restaurarSesionActiva();
-  }, 250);
+  }, 350);
 }
 
 /**
  * Restaura la sesión guardada.
  *
- * Regla:
- * - Si hay CI/chapa guardados, se reutilizan.
- * - Si la fecha guardada no es la fecha actual, se cambia automáticamente a hoy.
- * - Luego intenta cargar la ruta automáticamente.
+ * Regla operativa:
+ * - Mantiene CI y chapa guardados.
+ * - Si la fecha guardada no es hoy, reemplaza automáticamente por hoy.
+ * - Carga automáticamente la ruta de hoy.
+ * - La consulta de fechas históricas queda permitida solo cuando el usuario cambia la fecha manualmente.
  */
 function restaurarSesionActiva() {
   const sesion = leerSesionActiva();
@@ -68,9 +83,9 @@ function restaurarSesionActiva() {
 
   const hoy = fechaHoyISO();
 
-  const ci = String(sesion.ci || "").trim();
-  const chapa = String(sesion.chapa || "").trim().toUpperCase();
-  const fechaGuardada = String(sesion.fecha || "").trim();
+  const ci = normalizarCI(sesion.ci || "");
+  const chapa = normalizarChapa(sesion.chapa || "");
+  const fechaGuardada = normalizarFechaISO(sesion.fecha || "");
 
   if (!ci || !chapa) return;
 
@@ -94,18 +109,22 @@ function restaurarSesionActiva() {
   });
 
   if (fechaGuardada && fechaGuardada !== hoy) {
-    setLoginMsg("Sesión activa detectada. La fecha anterior no es de hoy; consultando la ruta actual...", false);
+    setLoginMsg("Sesión activa detectada. Se actualizará la consulta a la ruta de hoy.", false);
   } else {
     setLoginMsg("Sesión activa detectada. Cargando ruta automáticamente...", false);
   }
 
   setTimeout(() => {
     cargarRutaChofer(false);
-  }, 400);
+  }, 450);
 }
 
 /**
  * Carga la ruta del chofer usando CI + chapa + fecha.
+ *
+ * Importante:
+ * - Si se llama automático desde sesión, usa la fecha que ya colocó restaurarSesionActiva().
+ * - Si el usuario cambia manualmente la fecha, se respeta esa fecha.
  */
 export async function cargarRutaChofer(showLoginErrors = true) {
   const ciInput = document.getElementById("ciInput");
@@ -114,9 +133,9 @@ export async function cargarRutaChofer(showLoginErrors = true) {
   const rememberInput = document.getElementById("rememberSessionInput");
   const btn = document.getElementById("btnLogin");
 
-  const ci = ciInput ? ciInput.value.trim() : "";
-  const chapa = chapaInput ? chapaInput.value.trim().toUpperCase() : "";
-  const fecha = fechaInput ? fechaInput.value.trim() : "";
+  const ci = normalizarCI(ciInput ? ciInput.value : "");
+  const chapa = normalizarChapa(chapaInput ? chapaInput.value : "");
+  const fecha = normalizarFechaISO(fechaInput ? fechaInput.value : "");
   const mantenerSesion = rememberInput ? rememberInput.checked : true;
 
   if (!ci || !chapa || !fecha) {
@@ -128,7 +147,7 @@ export async function cargarRutaChofer(showLoginErrors = true) {
 
   /*
     Guardamos antes de consultar.
-    Así, aunque el chofer no tenga ruta asignada, no vuelve a cargar CI/chapa.
+    Así, aunque no exista ruta asignada, CI/chapa quedan guardados.
   */
   if (mantenerSesion) {
     guardarSesionActiva({
@@ -166,8 +185,9 @@ export async function cargarRutaChofer(showLoginErrors = true) {
     }
 
     /*
-      Si cargó correctamente y el usuario quiere mantener sesión,
-      actualizamos la sesión con los datos definitivos.
+      Si cargó correctamente, actualizamos sesión con la fecha realmente consultada.
+      Si fue una consulta histórica manual, se guarda esa fecha, pero al recargar mañana
+      restaurarSesionActiva() volverá a consultar hoy automáticamente.
     */
     if (mantenerSesion) {
       guardarSesionActiva({
@@ -189,12 +209,12 @@ export async function cargarRutaChofer(showLoginErrors = true) {
   } catch (error) {
     const mensajeError = "Error al conectar con LOGITRACK:\n" + error.message;
 
-    if (showLoginErrors) {
-      setLoginMsg(mensajeError, true);
-    } else {
-      setLoginMsg(mensajeError, true);
+    setLoginMsg(mensajeError, true);
+
+    if (!showLoginErrors) {
       toastLogin(mensajeError, "error");
     }
+
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -205,77 +225,72 @@ export async function cargarRutaChofer(showLoginErrors = true) {
 
 /**
  * Construye mensaje cuando no se encuentra ruta.
+ *
+ * Regla:
+ * - Hoy sin ruta: NO TIENE RUTA ASIGNADA PARA HOY
+ * - Fecha anterior sin ruta: NO SE ENCUENTRA REGISTRO HISTORICO DE LA FECHA
+ * - Fecha futura sin ruta: NO EXISTE PLANIFICACION PARA LA FECHA SELECCIONADA
  */
 function construirMensajeSinRuta(result, fechaConsulta) {
   const mensajeApi = String(result?.mensaje || "").trim();
+  const fecha = normalizarFechaISO(fechaConsulta);
 
+  /*
+    Si Apps Script ya devuelve un mensaje específico y claro, se respeta.
+    Si devuelve mensaje genérico, se reemplaza por el mensaje estándar del frontend.
+  */
   if (mensajeApi) {
-    const mensajeNormalizado = mensajeApi.toUpperCase();
+    const msg = mensajeApi.toUpperCase();
 
-    if (
-      mensajeNormalizado.includes("NO TIENE RUTA") ||
-      mensajeNormalizado.includes("NO SE ENCUENTRA") ||
-      mensajeNormalizado.includes("NO HAY")
-    ) {
+    const esMensajeEspecifico =
+      msg.includes("NO TIENE RUTA ASIGNADA PARA HOY") ||
+      msg.includes("NO SE ENCUENTRA REGISTRO HISTORICO") ||
+      msg.includes("NO EXISTE PLANIFICACION");
+
+    if (esMensajeEspecifico) {
       return mensajeApi;
     }
   }
 
-  const hoy = fechaHoyISO();
-
-  if (fechaConsulta === hoy) {
-    return "NO TIENE RUTA ASIGNADA PARA HOY";
-  }
-
-  return "NO SE ENCUENTRA REGISTRO HISTORICO DE LA FECHA";
+  return mensajeSinRutaPorFecha(fecha);
 }
 
 /**
  * Guarda sesión local.
  */
 export function guardarSesionActiva({ ci, chapa, fecha, mantenerSesion }) {
-  try {
-    const payload = {
-      ci: String(ci || "").trim(),
-      chapa: String(chapa || "").trim().toUpperCase(),
-      fecha: String(fecha || "").trim(),
-      mantenerSesion: Boolean(mantenerSesion),
-      guardadoEn: new Date().toISOString()
-    };
+  const payload = {
+    ci: normalizarCI(ci || ""),
+    chapa: normalizarChapa(chapa || ""),
+    fecha: normalizarFechaISO(fecha || ""),
+    mantenerSesion: Boolean(mantenerSesion),
+    guardadoEn: new Date().toISOString()
+  };
 
-    localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
-
-  } catch (error) {
-    console.warn("No se pudo guardar la sesión:", error);
+  if (!payload.mantenerSesion) {
+    limpiarSesionActiva();
+    return false;
   }
+
+  if (!payload.ci || !payload.chapa) {
+    return false;
+  }
+
+  return storageSet(SESSION_KEY, payload);
 }
 
 /**
  * Lee sesión local.
  */
 function leerSesionActiva() {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-
-    if (!raw) return null;
-
-    return JSON.parse(raw);
-
-  } catch (error) {
-    console.warn("No se pudo leer la sesión:", error);
-    return null;
-  }
+  return storageGet(SESSION_KEY, null);
 }
 
 /**
  * Borra sesión local.
  */
 export function limpiarSesionActiva() {
-  try {
-    localStorage.removeItem(SESSION_KEY);
-  } catch (error) {
-    console.warn("No se pudo limpiar la sesión:", error);
-  }
+  return storageRemove(SESSION_KEY);
 }
 
 /**
