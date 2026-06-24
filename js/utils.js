@@ -1,13 +1,15 @@
 // LOGITRACK - utils.js
 // Utilidades generales reutilizables:
 // - Formatos numéricos
-// - Fechas
+// - Fechas Paraguay
 // - Limpieza de estados
 // - Conversión numérica
 // - Seguridad básica para HTML
 // - Toast global
 // - LocalStorage seguro
 // - Helpers generales
+
+export const TIMEZONE_PY = "America/Asuncion";
 
 export const formatoNum = new Intl.NumberFormat("es-PY", {
   maximumFractionDigits: 2
@@ -23,6 +25,7 @@ export const formatoDecimal = new Intl.NumberFormat("es-PY", {
 });
 
 export const formatoFechaCorta = new Intl.DateTimeFormat("es-PY", {
+  timeZone: TIMEZONE_PY,
   year: "numeric",
   month: "2-digit",
   day: "2-digit"
@@ -39,6 +42,12 @@ export function registrarUtils() {
     escapeHtml,
     escapeAttr,
     fechaHoyISO,
+    fechaHoyPY,
+    normalizarFechaISO,
+    esFechaHoy,
+    esFechaHistorica,
+    esFechaFutura,
+    mensajeSinRutaPorFecha,
     normalizarTexto,
     toastGlobal,
     storageGet,
@@ -53,28 +62,188 @@ export function registrarUtils() {
   window.escapeHtml = escapeHtml;
   window.escapeAttr = escapeAttr;
   window.fechaHoyISO = fechaHoyISO;
+  window.fechaHoyPY = fechaHoyPY;
+  window.normalizarFechaISO = normalizarFechaISO;
+  window.esFechaHoy = esFechaHoy;
+  window.esFechaHistorica = esFechaHistorica;
+  window.mensajeSinRutaPorFecha = mensajeSinRutaPorFecha;
   window.toastGlobal = toastGlobal;
 }
 
 /**
- * Devuelve fecha actual local en formato YYYY-MM-DD.
+ * Devuelve fecha actual de Paraguay en formato YYYY-MM-DD.
+ * Esto evita errores por zona horaria del navegador o UTC.
  */
 export function fechaHoyISO() {
-  const d = new Date();
-  const offset = d.getTimezoneOffset();
-  const local = new Date(d.getTime() - offset * 60000);
-
-  return local.toISOString().slice(0, 10);
+  return fechaISODesdeDate(new Date());
 }
 
 /**
- * Devuelve fecha y hora local en formato legible.
+ * Alias semántico de fechaHoyISO().
+ */
+export function fechaHoyPY() {
+  return fechaHoyISO();
+}
+
+/**
+ * Convierte un Date a YYYY-MM-DD usando zona horaria de Paraguay.
+ */
+export function fechaISODesdeDate(date) {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIMEZONE_PY,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+
+  const year = partes.find(p => p.type === "year")?.value || "";
+  const month = partes.find(p => p.type === "month")?.value || "";
+  const day = partes.find(p => p.type === "day")?.value || "";
+
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Normaliza fechas recibidas desde inputs, Google Sheets o texto.
+ *
+ * Soporta:
+ * - YYYY-MM-DD
+ * - DD/MM/YYYY
+ * - DD-MM-YYYY
+ * - Date
+ */
+export function normalizarFechaISO(value) {
+  if (!value) return "";
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return fechaISODesdeDate(value);
+  }
+
+  const txt = String(value).trim();
+
+  if (!txt) return "";
+
+  // Ya viene como YYYY-MM-DD
+  const isoMatch = txt.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    return txt;
+  }
+
+  // Viene como DD/MM/YYYY o DD-MM-YYYY
+  const pyMatch = txt.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (pyMatch) {
+    const day = pyMatch[1].padStart(2, "0");
+    const month = pyMatch[2].padStart(2, "0");
+    const year = pyMatch[3];
+
+    return `${year}-${month}-${day}`;
+  }
+
+  // Último intento con Date nativo
+  const parsed = new Date(txt);
+  if (!Number.isNaN(parsed.getTime())) {
+    return fechaISODesdeDate(parsed);
+  }
+
+  return txt;
+}
+
+/**
+ * Devuelve fecha en formato DD/MM/YYYY para mostrar.
+ */
+export function fechaDisplayPY(value) {
+  const iso = normalizarFechaISO(value);
+
+  if (!iso) return "";
+
+  const partes = iso.split("-");
+
+  if (partes.length !== 3) return iso;
+
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+}
+
+/**
+ * Compara dos fechas ISO YYYY-MM-DD.
+ */
+export function compararFechasISO(a, b) {
+  const fa = normalizarFechaISO(a);
+  const fb = normalizarFechaISO(b);
+
+  if (!fa || !fb) return 0;
+
+  if (fa < fb) return -1;
+  if (fa > fb) return 1;
+
+  return 0;
+}
+
+/**
+ * Indica si la fecha consultada corresponde a hoy en Paraguay.
+ */
+export function esFechaHoy(value) {
+  return normalizarFechaISO(value) === fechaHoyISO();
+}
+
+/**
+ * Indica si la fecha consultada es anterior a hoy.
+ */
+export function esFechaHistorica(value) {
+  const fecha = normalizarFechaISO(value);
+  const hoy = fechaHoyISO();
+
+  if (!fecha) return false;
+
+  return fecha < hoy;
+}
+
+/**
+ * Indica si la fecha consultada es futura.
+ */
+export function esFechaFutura(value) {
+  const fecha = normalizarFechaISO(value);
+  const hoy = fechaHoyISO();
+
+  if (!fecha) return false;
+
+  return fecha > hoy;
+}
+
+/**
+ * Mensaje estándar cuando no se encuentra ruta.
+ *
+ * Regla:
+ * - Si la fecha es hoy: no tiene ruta para hoy.
+ * - Si la fecha es anterior: no hay histórico.
+ * - Si la fecha es futura: no hay planificación para esa fecha.
+ */
+export function mensajeSinRutaPorFecha(fechaConsulta) {
+  const fecha = normalizarFechaISO(fechaConsulta);
+
+  if (esFechaHoy(fecha)) {
+    return "NO TIENE RUTA ASIGNADA PARA HOY";
+  }
+
+  if (esFechaHistorica(fecha)) {
+    return "NO SE ENCUENTRA REGISTRO HISTORICO DE LA FECHA";
+  }
+
+  if (esFechaFutura(fecha)) {
+    return "NO EXISTE PLANIFICACION PARA LA FECHA SELECCIONADA";
+  }
+
+  return "NO SE ENCUENTRA RUTA PARA LA FECHA SELECCIONADA";
+}
+
+/**
+ * Devuelve fecha y hora local de Paraguay en formato legible.
  */
 export function fechaHoraLocal() {
   const d = new Date();
 
   const fecha = formatoFechaCorta.format(d);
   const hora = d.toLocaleTimeString("es-PY", {
+    timeZone: TIMEZONE_PY,
     hour: "2-digit",
     minute: "2-digit"
   });
