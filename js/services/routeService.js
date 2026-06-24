@@ -6,11 +6,12 @@
 // - Filtrar, buscar y ordenar paradas
 // - Cargar facturas y productos relacionados
 //
-// Versión 1.6:
-// - Fuerza carga actualizada de api.js y utils.js
-// - Respeta respuesta histórica de Apps Script
-// - Guarda modoConsulta y soloLectura en state si existen
-// - Mejora diagnóstico cuando la API devuelve ok:false
+// Versión 1.6 - Fase 1.2-A:
+// - Respeta respuesta histórica de Apps Script.
+// - Guarda modoConsulta, soloLectura, codigoRuta y fuenteDatos.
+// - Agrega rutaCerrada al state.
+// - Prepara bloqueo de acciones para rutas históricas cerradas.
+// - Mantiene ruta histórica pendiente como operativa si soloLectura=false.
 
 import { state } from "../state.js";
 import { apiGet } from "../api.js?v=1.6";
@@ -28,6 +29,8 @@ export function registrarRouteService() {
   window.buscarParadaPorClaves = buscarParadaPorClaves;
   window.obtenerParadasFiltradas = obtenerParadasFiltradas;
   window.cargarRutaDesdeAPI = cargarRutaDesdeAPI;
+  window.aplicarDatosRuta = aplicarDatosRuta;
+  window.detectarRutaCerrada = detectarRutaCerrada;
 }
 
 /**
@@ -76,9 +79,11 @@ export async function cargarRutaDesdeAPI({ ci, chapa, fecha }) {
     ok: true,
     mensaje: data.mensaje || "Ruta cargada correctamente.",
     codigo: data.codigo || "RUTA_ENCONTRADA",
-    modoConsulta: data.modoConsulta || "OPERATIVO",
-    soloLectura: Boolean(data.soloLectura),
-    fechaRuta: data.fechaRuta || fechaLimpia,
+    modoConsulta: state.modoConsulta || data.modoConsulta || "OPERATIVO",
+    soloLectura: Boolean(state.soloLectura),
+    rutaCerrada: Boolean(state.rutaCerrada),
+    fuenteDatos: state.fuenteDatos || data.fuenteDatos || "",
+    fechaRuta: state.fecha || data.fechaRuta || fechaLimpia,
     chofer: state.chofer,
     movil: state.movil,
     resumen: state.resumen,
@@ -91,6 +96,9 @@ export async function cargarRutaDesdeAPI({ ci, chapa, fecha }) {
  * Aplica la respuesta de loginRuta al estado global.
  */
 export function aplicarDatosRuta({ ci, chapa, fecha, data }) {
+  const paradas = Array.isArray(data.data) ? data.data : [];
+  const rutaCerradaDetectada = detectarRutaCerrada(paradas);
+
   state.ci = ci || "";
   state.chapa = chapa || "";
   state.fecha = data.fechaRuta || fecha || "";
@@ -98,7 +106,7 @@ export function aplicarDatosRuta({ ci, chapa, fecha, data }) {
   state.chofer = data.chofer || null;
   state.movil = data.movil || null;
   state.resumen = data.resumen || {};
-  state.paradas = Array.isArray(data.data) ? data.data : [];
+  state.paradas = paradas;
 
   /*
     Campos nuevos del backend:
@@ -110,6 +118,7 @@ export function aplicarDatosRuta({ ci, chapa, fecha, data }) {
   state.soloLectura = Boolean(data.soloLectura);
   state.codigoRuta = data.codigo || "";
   state.fuenteDatos = data.fuenteDatos || "";
+  state.rutaCerrada = Boolean(data.soloLectura || rutaCerradaDetectada);
 
   state.paradasMap = construirParadasMap(state.paradas);
 
@@ -127,6 +136,39 @@ export function aplicarDatosRuta({ ci, chapa, fecha, data }) {
 
     state.paradaActiva = parada || null;
   }
+
+  console.log("LOGITRACK state ruta:", {
+    fecha: state.fecha,
+    modoConsulta: state.modoConsulta,
+    soloLectura: state.soloLectura,
+    rutaCerrada: state.rutaCerrada,
+    codigoRuta: state.codigoRuta,
+    fuenteDatos: state.fuenteDatos,
+    paradas: state.paradas.length
+  });
+}
+
+/**
+ * Detecta si la ruta está cerrada según los datos de paradas.
+ */
+export function detectarRutaCerrada(paradas = []) {
+  if (!Array.isArray(paradas) || paradas.length === 0) {
+    return false;
+  }
+
+  const conCampoCierre = paradas.filter(p => {
+    const valor = String(p.RutaCerrada ?? p.rutaCerrada ?? "").trim();
+    return valor !== "";
+  });
+
+  if (conCampoCierre.length === 0) {
+    return false;
+  }
+
+  return conCampoCierre.every(p => {
+    const valor = cleanEstado(p.RutaCerrada ?? p.rutaCerrada ?? "");
+    return valor === "SI" || valor === "CERRADA" || valor === "CERRADO";
+  });
 }
 
 /**
@@ -217,7 +259,10 @@ export function calcularEstadoRuta() {
     gestionados,
     avance,
     modoConsulta: state.modoConsulta || "OPERATIVO",
-    soloLectura: Boolean(state.soloLectura)
+    soloLectura: Boolean(state.soloLectura),
+    rutaCerrada: Boolean(state.rutaCerrada),
+    codigoRuta: state.codigoRuta || "",
+    fuenteDatos: state.fuenteDatos || ""
   };
 }
 
