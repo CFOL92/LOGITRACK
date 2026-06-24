@@ -4,10 +4,27 @@
 // - Entregado parcial
 // - Rechazado total
 // - No despachado
+//
+// Versión 1.6 - Fase 1.2-A:
+// - Bloquea acciones si la ruta está en soloLectura.
+// - Bloquea acciones si la ruta está cerrada.
+// - Bloquea acciones si modoConsulta = HISTORICO_CERRADO.
+// - Mantiene HISTORICO_PENDIENTE editable si soloLectura=false.
+// - Evita doble ejecución por doble clic.
+// - Valida cantidad entregada para entrega parcial.
 
 import { state } from "../state.js";
-import { apiGet } from "../api.js";
+import { apiGet } from "../api.js?v=1.6";
 import { obtenerGPS } from "../services/gpsService.js";
+
+let accionProductoEnCurso = false;
+
+const ESTADOS_PRODUCTO_VALIDOS = [
+  "ENTREGADO_TOTAL",
+  "ENTREGADO_PARCIAL",
+  "RECHAZADO_TOTAL",
+  "NO_DESPACHADO"
+];
 
 /**
  * Registra las funciones en window para mantener compatibilidad
@@ -15,6 +32,8 @@ import { obtenerGPS } from "../services/gpsService.js";
  */
 export function registrarProductoActions() {
   window.actualizarProducto = actualizarProducto;
+  window.validarContextoProducto = validarContextoRuta;
+  window.rutaBloqueadaProducto = rutaBloqueadaParaProducto;
 }
 
 /**
@@ -27,6 +46,8 @@ export function registrarProductoActions() {
  * - NO_DESPACHADO
  */
 export async function actualizarProducto(productoFacturaId, estado) {
+  if (!validarContextoRuta()) return;
+
   if (!productoFacturaId) {
     toastProducto("Producto inválido.", "error");
     return;
@@ -34,12 +55,10 @@ export async function actualizarProducto(productoFacturaId, estado) {
 
   const estadoNormalizado = String(estado || "").trim().toUpperCase();
 
-  if (!estadoNormalizado) {
+  if (!estadoNormalizado || !ESTADOS_PRODUCTO_VALIDOS.includes(estadoNormalizado)) {
     toastProducto("Estado de producto inválido.", "error");
     return;
   }
-
-  if (!validarContextoRuta()) return;
 
   let cantidadEntregada = "";
   let motivo = "";
@@ -54,10 +73,10 @@ export async function actualizarProducto(productoFacturaId, estado) {
 
     if (cantidadEntregada === null) return;
 
-    cantidadEntregada = String(cantidadEntregada || "").trim();
+    cantidadEntregada = normalizarCantidad(cantidadEntregada);
 
     if (!cantidadEntregada) {
-      toastProducto("Debe ingresar la cantidad entregada.", "error");
+      toastProducto("Debe ingresar una cantidad entregada válida.", "error");
       return;
     }
 
@@ -116,10 +135,19 @@ async function ejecutarAccionProducto({
   cantidadEntregada,
   motivo
 }) {
+  if (!validarContextoRuta()) return;
+
+  if (accionProductoEnCurso) {
+    toastProducto("Ya hay una acción de producto en proceso. Aguarde...", "error");
+    return;
+  }
+
+  accionProductoEnCurso = true;
+
   try {
     toastProducto("Capturando ubicación...");
 
-    const gps = await obtenerGPS();
+    const gps = await obtenerGPSSeguro();
 
     const data = await apiGet({
       mode: "actualizarProducto",
@@ -140,12 +168,18 @@ async function ejecutarAccionProducto({
       return;
     }
 
+    limpiarCacheDespuesDeAccion();
+
     toastProducto(data.mensaje || "Producto actualizado.", "ok");
 
     await refrescarDespuesDeAccionProducto();
 
   } catch (error) {
-    toastProducto("Error al actualizar producto:\n" + error.message, "error");
+    console.error("LOGITRACK productoActions error:", error);
+    toastProducto("Error al actualizar producto:\n" + (error.message || error), "error");
+
+  } finally {
+    accionProductoEnCurso = false;
   }
 }
 
@@ -158,7 +192,94 @@ function validarContextoRuta() {
     return false;
   }
 
+  if (rutaBloqueadaParaProducto()) {
+    toastProducto(mensajeRutaBloqueada(), "error");
+    return false;
+  }
+
   return true;
+}
+
+/**
+ * Determina si la ruta actual está bloqueada para gestión de productos.
+ *
+ * Reglas:
+ * - OPERATIVO: permite gestionar.
+ * - HISTORICO_PENDIENTE + soloLectura=false: permite gestionar.
+ * - HISTORICO_CERRADO: bloquea.
+ * - soloLectura=true: bloquea.
+ * - rutaCerrada=true: bloquea.
+ */
+function rutaBloqueadaParaProducto() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  return Boolean(
+    state.soloLectura === true ||
+    state.rutaCerrada === true ||
+    modo === "HISTORICO_CERRADO"
+  );
+}
+
+/**
+ * Mensaje visible cuando la ruta no permite gestión.
+ */
+function mensajeRutaBloqueada() {
+  const modo = String(state.modoConsulta || "OPERATIVO").trim().toUpperCase();
+
+  if (modo === "HISTORICO_CERRADO") {
+    return "Esta ruta histórica ya está cerrada. Solo se permite consultar.";
+  }
+
+  if (state.rutaCerrada) {
+    return "La ruta está cerrada. No se pueden modificar productos.";
+  }
+
+  if (state.soloLectura) {
+    return "La ruta está en modo solo lectura. No se pueden modificar productos.";
+  }
+
+  return "La ruta no permite gestión en este momento.";
+}
+
+/**
+ * Obtiene GPS de forma controlada.
+ */
+async function obtenerGPSSeguro() {
+  const gps = await obtenerGPS();
+
+  return {
+    lat: gps?.lat ?? "",
+    lng: gps?.lng ?? "",
+    precision: gps?.precision ?? ""
+  };
+}
+
+/**
+ * Normaliza cantidad entregada.
+ * Acepta coma o punto decimal.
+ */
+function normalizarCantidad(value) {
+  const raw = String(value || "")
+    .trim()
+    .replace(",", ".");
+
+  if (!raw) return "";
+
+  const numero = Number(raw);
+
+  if (!Number.isFinite(numero) || numero <= 0) {
+    return "";
+  }
+
+  return String(numero);
+}
+
+/**
+ * Limpia caches locales después de modificar un producto.
+ */
+function limpiarCacheDespuesDeAccion() {
+  state.facturasCache = {};
+  state.productosCache = {};
 }
 
 /**
