@@ -1,84 +1,80 @@
 // LOGITRACK - main.js
 // Punto central de arranque de la aplicación modular.
-// Aquí se conectan:
-// - Configuración
-// - API
-// - Estado
-// - Servicios
-// - Vistas
-// - Acciones
-// - Navegación principal
+// Versión 1.6:
+// - Fuerza recarga de módulos principales con query ?v=1.6
+// - Mantiene state/config/utils sin query para evitar duplicar estado interno
+// - Conecta configuración, API, estado, servicios, vistas, acciones y navegación
 
 import { APP_CONFIG } from "./config.js";
 import { state } from "./state.js";
 
 import { registrarUtils } from "./utils.js";
 
-import { registrarApiService, verificarConexionAPI } from "./api.js";
+import { registrarApiService, verificarConexionAPI } from "./api.js?v=1.6";
 
 import {
   initMap,
   registrarMapService,
   dibujarMapa,
   refrescarTamanioMapa
-} from "./services/mapService.js";
+} from "./services/mapService.js?v=1.6";
 
 import {
   registrarGpsService
-} from "./services/gpsService.js";
+} from "./services/gpsService.js?v=1.6";
 
 import {
   registrarRouteService
-} from "./services/routeService.js";
+} from "./services/routeService.js?v=1.6";
 
 import {
   registrarLoginView,
   inicializarLogin,
   cargarRutaChofer,
   actualizarPanelChofer
-} from "./views/loginView.js";
+} from "./views/loginView.js?v=1.6";
 
 import {
   registrarInicioView,
   renderInicio,
   actualizarAppHeader
-} from "./views/inicioView.js";
+} from "./views/inicioView.js?v=1.6";
 
 import {
   registrarRutaView,
   renderRuta
-} from "./views/rutaView.js";
+} from "./views/rutaView.js?v=1.6";
 
 import {
   registrarMapaView,
   activarVistaMapa,
   ocultarTopPanel,
   actualizarPanelMapa
-} from "./views/mapaView.js";
+} from "./views/mapaView.js?v=1.6";
 
 import {
   registrarCierreView,
   renderCierre
-} from "./views/cierreView.js";
+} from "./views/cierreView.js?v=1.6";
 
 import {
   registrarEntregaView,
   abrirParada,
   verProductos,
   cerrarPanel
-} from "./views/entregaView.js";
+} from "./views/entregaView.js?v=1.6";
 
 import {
   registrarFacturaActions
-} from "./actions/facturaActions.js";
+} from "./actions/facturaActions.js?v=1.6";
 
 import {
   registrarProductoActions
-} from "./actions/productoActions.js";
+} from "./actions/productoActions.js?v=1.6";
 
 import {
   registrarRutaActions
-} from "./actions/rutaActions.js";
+} from "./actions/rutaActions.js?v=1.6";
 
 /**
  * Arranque principal.
@@ -107,6 +103,7 @@ function inicializarAplicacion() {
     inicializarLogin();
 
     console.info(`${APP_CONFIG.nombre} ${APP_CONFIG.version} inicializado correctamente.`);
+    console.info("LOGITRACK frontend build: v1.6");
 
   } catch (error) {
     console.error("Error al inicializar LOGITRACK:", error);
@@ -121,13 +118,16 @@ function inicializarAplicacion() {
 function configurarVentanaGlobal() {
   window.LOGITRACK = {
     app: APP_CONFIG,
-    state
+    state,
+    build: "v1.6"
   };
 
   window.cambiarVista = cambiarVista;
   window.renderApp = renderApp;
   window.renderTodo = renderApp;
   window.refrescarDespuesDeGestion = refrescarDespuesDeGestion;
+  window.cerrarTodoPanel = cerrarTodoPanel;
+  window.refrescarMapaVisual = refrescarMapaVisual;
   window.toast = toastMain;
 }
 
