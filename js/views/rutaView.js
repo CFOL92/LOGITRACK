@@ -4,7 +4,15 @@
 // - Buscador por cliente, CodBoca, ciudad, zona o dirección
 // - Filtros por estado
 // - Ordenamiento operativo
-// - Acciones: gestionar, ver en mapa, ir con GPS
+// - Acciones: gestionar, ir con GPS
+//
+// Versión 1.7:
+// - Corrige botón Gestionar usando clave robusta de parada.
+// - Quita botón Ver mapa de la tarjeta.
+// - Mantiene Ir con GPS.
+// - Fuerza imports con ?v=1.7.
+// - Resuelve la parada desde state.paradas antes de abrir gestión.
+// - Mejora diagnóstico si no abre el panel de gestión.
 
 import { state } from "../state.js";
 
@@ -12,11 +20,7 @@ import {
   obtenerParadasFiltradas,
   calcularEstadoRuta,
   esParadaPendiente
-} from "../services/routeService.js";
-
-import {
-  abrirPopupParada
-} from "../services/mapService.js";
+} from "../services/routeService.js?v=1.7";
 
 import {
   cleanEstado,
@@ -25,7 +29,7 @@ import {
   formatoNum,
   formatoGs,
   toNumber
-} from "../utils.js";
+} from "../utils.js?v=1.7";
 
 /**
  * Registra funciones globales para mantener compatibilidad
@@ -38,8 +42,10 @@ export function registrarRutaView() {
   window.buscarRuta = buscarRuta;
   window.cambiarOrdenRuta = cambiarOrdenRuta;
   window.limpiarBusquedaRuta = limpiarBusquedaRuta;
+
+  window.gestionarParadaRuta = gestionarParadaRuta;
   window.abrirParadaDesdeLista = abrirParadaDesdeLista;
-  window.verParadaEnMapa = verParadaEnMapa;
+
   window.toastRutaView = toastRutaView;
 }
 
@@ -94,7 +100,6 @@ function inicializarEstadoRutaView() {
 
 /**
  * Renderiza solo el resultado de la lista.
- * Se usa para búsqueda sin redibujar todo el formulario.
  */
 export function renderResultadoRuta() {
   const listContent = document.getElementById("routeListContent");
@@ -253,9 +258,10 @@ function renderParadaCard(p) {
 
   const lat = p.Latitud || "";
   const lon = p.Longitud || "";
+  const paradaKey = crearClaveParada(p);
 
   return `
-    <div class="stop-card ${claseEstado}">
+    <div class="stop-card ${claseEstado}" data-parada-key="${escapeAttr(paradaKey)}">
       <div class="stop-top">
         <div class="stop-order">
           ${escapeHtml(p.OrdenPlanificado || "-")}
@@ -287,17 +293,12 @@ function renderParadaCard(p) {
 
       <div class="stop-actions">
         <button
+          type="button"
           class="btn-primary"
-          onclick="window.abrirParadaDesdeLista('${escapeAttr(p.ParadaID || "")}', '${escapeAttr(p.CodBoca || "")}', '${escapeAttr(p.RutaID || "")}')"
+          style="grid-column:1 / -1;"
+          onclick="window.gestionarParadaRuta('${escapeAttr(paradaKey)}')"
         >
           Gestionar
-        </button>
-
-        <button
-          class="btn-secondary"
-          onclick="window.verParadaEnMapa('${escapeAttr(p.ParadaID || "")}', '${escapeAttr(p.CodBoca || "")}', '${escapeAttr(p.RutaID || "")}')"
-        >
-          Ver mapa
         </button>
 
         ${lat && lon ? `
@@ -311,6 +312,7 @@ function renderParadaCard(p) {
           </a>
         ` : `
           <button
+            type="button"
             class="btn-secondary"
             style="grid-column:1 / -1;"
             onclick="window.toastRutaView('Esta parada no tiene coordenadas.', 'error')"
@@ -368,6 +370,60 @@ function obtenerClaseEstadoCard(parada) {
 }
 
 /**
+ * Crea una clave robusta para localizar la parada.
+ */
+function crearClaveParada(parada) {
+  const paradaId = String(parada.ParadaID || "").trim();
+  const rutaId = String(parada.RutaID || "").trim();
+  const codBoca = String(parada.CodBoca || "").trim();
+
+  if (paradaId) {
+    return `PID:${paradaId}`;
+  }
+
+  if (rutaId || codBoca) {
+    return `RID:${rutaId}|CB:${codBoca}`;
+  }
+
+  return `ORD:${String(parada.OrdenPlanificado || "")}|CLI:${String(parada.Cliente || parada.Boca || "")}`;
+}
+
+/**
+ * Busca parada desde una clave generada por crearClaveParada().
+ */
+function buscarParadaPorClaveVista(key) {
+  const clave = String(key || "").trim();
+
+  if (!clave) return null;
+
+  const paradas = Array.isArray(state.paradas) ? state.paradas : [];
+
+  if (clave.startsWith("PID:")) {
+    const paradaId = clave.replace("PID:", "");
+
+    return paradas.find(p =>
+      String(p.ParadaID || "").trim() === paradaId
+    ) || null;
+  }
+
+  if (clave.startsWith("RID:")) {
+    const raw = clave.replace("RID:", "");
+    const partes = raw.split("|CB:");
+    const rutaId = partes[0] || "";
+    const codBoca = partes[1] || "";
+
+    return paradas.find(p =>
+      String(p.RutaID || "").trim() === rutaId &&
+      String(p.CodBoca || "").trim() === codBoca
+    ) || paradas.find(p =>
+      String(p.CodBoca || "").trim() === codBoca
+    ) || null;
+  }
+
+  return paradas.find(p => crearClaveParada(p) === clave) || null;
+}
+
+/**
  * Cambia filtro de ruta.
  */
 export function filtrarRuta(filtro) {
@@ -416,6 +472,29 @@ export function limpiarBusquedaRuta() {
 }
 
 /**
+ * Nueva acción robusta del botón Gestionar.
+ */
+export function gestionarParadaRuta(paradaKey) {
+  const parada = buscarParadaPorClaveVista(paradaKey);
+
+  if (!parada) {
+    console.warn("No se encontró parada para gestionar:", {
+      paradaKey,
+      totalParadas: Array.isArray(state.paradas) ? state.paradas.length : 0
+    });
+
+    toastRutaView("No se pudo abrir la gestión de esta parada.", "error");
+    return;
+  }
+
+  abrirParadaDesdeLista(
+    parada.ParadaID || "",
+    parada.CodBoca || "",
+    parada.RutaID || ""
+  );
+}
+
+/**
  * Abre parada para gestión desde la vista ruta.
  */
 export function abrirParadaDesdeLista(paradaId, codBoca, rutaId) {
@@ -424,24 +503,17 @@ export function abrirParadaDesdeLista(paradaId, codBoca, rutaId) {
     return;
   }
 
-  window.abrirParada(paradaId, codBoca, rutaId);
-}
+  const pId = String(paradaId || "").trim();
+  const cBoca = String(codBoca || "").trim();
+  const rId = String(rutaId || "").trim();
 
-/**
- * Cambia a mapa y centra la parada seleccionada.
- */
-export function verParadaEnMapa(paradaId, codBoca, rutaId) {
-  if (typeof window.cambiarVista === "function") {
-    window.cambiarVista("mapa");
-  }
+  console.log("LOGITRACK abrirParadaDesdeLista:", {
+    paradaId: pId,
+    codBoca: cBoca,
+    rutaId: rId
+  });
 
-  setTimeout(() => {
-    try {
-      abrirPopupParada(paradaId, codBoca, rutaId);
-    } catch (error) {
-      toastRutaView("No se pudo ubicar la parada en el mapa.", "error");
-    }
-  }, 250);
+  window.abrirParada(pId, cBoca, rId);
 }
 
 /**
