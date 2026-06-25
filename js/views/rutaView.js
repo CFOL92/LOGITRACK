@@ -6,13 +6,11 @@
 // - Ordenamiento operativo
 // - Acciones: gestionar, ir con GPS
 //
-// Versión 1.7:
-// - Corrige botón Gestionar usando clave robusta de parada.
-// - Quita botón Ver mapa de la tarjeta.
+// Versión 1.8:
+// - Corrige botón Gestionar.
+// - Quita botón Ver mapa.
 // - Mantiene Ir con GPS.
-// - Fuerza imports con ?v=1.7.
-// - Resuelve la parada desde state.paradas antes de abrir gestión.
-// - Mejora diagnóstico si no abre el panel de gestión.
+// - Gestionar abre la parada desde state.paradas usando clave robusta.
 
 import { state } from "../state.js";
 
@@ -20,7 +18,7 @@ import {
   obtenerParadasFiltradas,
   calcularEstadoRuta,
   esParadaPendiente
-} from "../services/routeService.js?v=1.7";
+} from "../services/routeService.js?v=1.8";
 
 import {
   cleanEstado,
@@ -29,12 +27,8 @@ import {
   formatoNum,
   formatoGs,
   toNumber
-} from "../utils.js?v=1.7";
+} from "../utils.js?v=1.8";
 
-/**
- * Registra funciones globales para mantener compatibilidad
- * con onclick="window.renderRuta()", onclick="window.filtrarRuta(...)", etc.
- */
 export function registrarRutaView() {
   window.renderRuta = renderRuta;
   window.renderResultadoRuta = renderResultadoRuta;
@@ -42,16 +36,11 @@ export function registrarRutaView() {
   window.buscarRuta = buscarRuta;
   window.cambiarOrdenRuta = cambiarOrdenRuta;
   window.limpiarBusquedaRuta = limpiarBusquedaRuta;
-
   window.gestionarParadaRuta = gestionarParadaRuta;
   window.abrirParadaDesdeLista = abrirParadaDesdeLista;
-
   window.toastRutaView = toastRutaView;
 }
 
-/**
- * Render principal de la vista Ruta.
- */
 export function renderRuta() {
   const contenedor = document.getElementById("rutaContent");
 
@@ -81,26 +70,12 @@ export function renderRuta() {
   renderResultadoRuta();
 }
 
-/**
- * Inicializa campos adicionales de la vista ruta.
- */
 function inicializarEstadoRutaView() {
-  if (!state.filtroRuta) {
-    state.filtroRuta = "TODOS";
-  }
-
-  if (state.busquedaRuta === undefined || state.busquedaRuta === null) {
-    state.busquedaRuta = "";
-  }
-
-  if (!state.ordenRuta) {
-    state.ordenRuta = "PLANIFICADO";
-  }
+  if (!state.filtroRuta) state.filtroRuta = "TODOS";
+  if (state.busquedaRuta === undefined || state.busquedaRuta === null) state.busquedaRuta = "";
+  if (!state.ordenRuta) state.ordenRuta = "PLANIFICADO";
 }
 
-/**
- * Renderiza solo el resultado de la lista.
- */
 export function renderResultadoRuta() {
   const listContent = document.getElementById("routeListContent");
   const routeCount = document.getElementById("routeCount");
@@ -125,9 +100,6 @@ export function renderResultadoRuta() {
   listContent.innerHTML = lista.map(p => renderParadaCard(p)).join("");
 }
 
-/**
- * Resumen superior de la ruta.
- */
 function renderResumenRuta(estado) {
   return `
     <div class="route-summary">
@@ -146,9 +118,6 @@ function renderResumenRuta(estado) {
   `;
 }
 
-/**
- * Buscador de ruta.
- */
 function renderBuscadorRuta() {
   return `
     <div class="route-search-box">
@@ -173,31 +142,13 @@ function renderBuscadorRuta() {
   `;
 }
 
-/**
- * Filtros por estado.
- */
 function renderFiltrosRuta(estado) {
   const filtros = [
-    {
-      id: "TODOS",
-      label: `Todos ${estado.totalPuntos}`
-    },
-    {
-      id: "PENDIENTE",
-      label: `Pendientes ${estado.pendientes}`
-    },
-    {
-      id: "ENTREGADO",
-      label: `Entregados ${estado.entregados}`
-    },
-    {
-      id: "PARCIAL",
-      label: `Parciales ${estado.parciales}`
-    },
-    {
-      id: "RECHAZADO",
-      label: `Rechazados ${estado.rechazados}`
-    }
+    { id: "TODOS", label: `Todos ${estado.totalPuntos}` },
+    { id: "PENDIENTE", label: `Pendientes ${estado.pendientes}` },
+    { id: "ENTREGADO", label: `Entregados ${estado.entregados}` },
+    { id: "PARCIAL", label: `Parciales ${estado.parciales}` },
+    { id: "RECHAZADO", label: `Rechazados ${estado.rechazados}` }
   ];
 
   const filtroActivo = state.filtroRuta || "TODOS";
@@ -216,46 +167,25 @@ function renderFiltrosRuta(estado) {
   `;
 }
 
-/**
- * Selector de ordenamiento.
- */
 function renderOrdenRuta() {
   const orden = state.ordenRuta || "PLANIFICADO";
 
   return `
     <div class="route-sort-box">
       <select id="rutaOrdenSelect" onchange="window.cambiarOrdenRuta(this.value)">
-        <option value="PLANIFICADO" ${orden === "PLANIFICADO" ? "selected" : ""}>
-          Orden planificado
-        </option>
-
-        <option value="ESTADO" ${orden === "ESTADO" ? "selected" : ""}>
-          Ordenar por estado
-        </option>
-
-        <option value="MAYOR_PESO" ${orden === "MAYOR_PESO" ? "selected" : ""}>
-          Mayor peso
-        </option>
-
-        <option value="MAYOR_FACTURAS" ${orden === "MAYOR_FACTURAS" ? "selected" : ""}>
-          Mayor cantidad de facturas
-        </option>
-
-        <option value="CLIENTE" ${orden === "CLIENTE" ? "selected" : ""}>
-          Cliente A-Z
-        </option>
+        <option value="PLANIFICADO" ${orden === "PLANIFICADO" ? "selected" : ""}>Orden planificado</option>
+        <option value="ESTADO" ${orden === "ESTADO" ? "selected" : ""}>Ordenar por estado</option>
+        <option value="MAYOR_PESO" ${orden === "MAYOR_PESO" ? "selected" : ""}>Mayor peso</option>
+        <option value="MAYOR_FACTURAS" ${orden === "MAYOR_FACTURAS" ? "selected" : ""}>Mayor cantidad de facturas</option>
+        <option value="CLIENTE" ${orden === "CLIENTE" ? "selected" : ""}>Cliente A-Z</option>
       </select>
     </div>
   `;
 }
 
-/**
- * Tarjeta principal de parada.
- */
 function renderParadaCard(p) {
   const estado = cleanEstado(p.EstadoParada || "PENDIENTE");
   const claseEstado = obtenerClaseEstadoCard(p);
-
   const lat = p.Latitud || "";
   const lon = p.Longitud || "";
   const paradaKey = crearClaveParada(p);
@@ -325,13 +255,8 @@ function renderParadaCard(p) {
   `;
 }
 
-/**
- * Mensaje compacto si una parada tiene pendientes.
- */
 function renderDetallePendiente(p) {
-  if (!esParadaPendiente(p)) {
-    return "";
-  }
+  if (!esParadaPendiente(p)) return "";
 
   return `
     <div class="product-line">
@@ -340,23 +265,12 @@ function renderDetallePendiente(p) {
   `;
 }
 
-/**
- * Determina clase visual para borde izquierdo.
- */
 function obtenerClaseEstadoCard(parada) {
   const estado = cleanEstado(parada.EstadoParada || "PENDIENTE");
 
-  if (esParadaPendiente(parada)) {
-    return "estado-pendiente";
-  }
-
-  if (estado === "ENTREGADO" || estado === "ENTREGADO_TOTAL") {
-    return "estado-entregado";
-  }
-
-  if (estado === "PARCIAL" || estado === "ENTREGADO_PARCIAL") {
-    return "estado-parcial";
-  }
+  if (esParadaPendiente(parada)) return "estado-pendiente";
+  if (estado === "ENTREGADO" || estado === "ENTREGADO_TOTAL") return "estado-entregado";
+  if (estado === "PARCIAL" || estado === "ENTREGADO_PARCIAL") return "estado-parcial";
 
   if (
     estado === "RECHAZADO" ||
@@ -369,41 +283,26 @@ function obtenerClaseEstadoCard(parada) {
   return "estado-pendiente";
 }
 
-/**
- * Crea una clave robusta para localizar la parada.
- */
 function crearClaveParada(parada) {
   const paradaId = String(parada.ParadaID || "").trim();
   const rutaId = String(parada.RutaID || "").trim();
   const codBoca = String(parada.CodBoca || "").trim();
 
-  if (paradaId) {
-    return `PID:${paradaId}`;
-  }
-
-  if (rutaId || codBoca) {
-    return `RID:${rutaId}|CB:${codBoca}`;
-  }
+  if (paradaId) return `PID:${paradaId}`;
+  if (rutaId || codBoca) return `RID:${rutaId}|CB:${codBoca}`;
 
   return `ORD:${String(parada.OrdenPlanificado || "")}|CLI:${String(parada.Cliente || parada.Boca || "")}`;
 }
 
-/**
- * Busca parada desde una clave generada por crearClaveParada().
- */
 function buscarParadaPorClaveVista(key) {
   const clave = String(key || "").trim();
+  const paradas = Array.isArray(state.paradas) ? state.paradas : [];
 
   if (!clave) return null;
 
-  const paradas = Array.isArray(state.paradas) ? state.paradas : [];
-
   if (clave.startsWith("PID:")) {
     const paradaId = clave.replace("PID:", "");
-
-    return paradas.find(p =>
-      String(p.ParadaID || "").trim() === paradaId
-    ) || null;
+    return paradas.find(p => String(p.ParadaID || "").trim() === paradaId) || null;
   }
 
   if (clave.startsWith("RID:")) {
@@ -423,57 +322,6 @@ function buscarParadaPorClaveVista(key) {
   return paradas.find(p => crearClaveParada(p) === clave) || null;
 }
 
-/**
- * Cambia filtro de ruta.
- */
-export function filtrarRuta(filtro) {
-  state.filtroRuta = String(filtro || "TODOS").trim().toUpperCase();
-
-  const input = document.getElementById("rutaSearchInput");
-
-  if (input) {
-    state.busquedaRuta = input.value || "";
-  }
-
-  renderRuta();
-}
-
-/**
- * Busca en la lista de ruta.
- */
-export function buscarRuta(valor) {
-  state.busquedaRuta = String(valor || "");
-
-  renderResultadoRuta();
-}
-
-/**
- * Cambia ordenamiento de la ruta.
- */
-export function cambiarOrdenRuta(orden) {
-  state.ordenRuta = String(orden || "PLANIFICADO").trim().toUpperCase();
-
-  renderResultadoRuta();
-}
-
-/**
- * Limpia búsqueda.
- */
-export function limpiarBusquedaRuta() {
-  state.busquedaRuta = "";
-
-  const input = document.getElementById("rutaSearchInput");
-
-  if (input) {
-    input.value = "";
-  }
-
-  renderResultadoRuta();
-}
-
-/**
- * Nueva acción robusta del botón Gestionar.
- */
 export function gestionarParadaRuta(paradaKey) {
   const parada = buscarParadaPorClaveVista(paradaKey);
 
@@ -494,9 +342,6 @@ export function gestionarParadaRuta(paradaKey) {
   );
 }
 
-/**
- * Abre parada para gestión desde la vista ruta.
- */
 export function abrirParadaDesdeLista(paradaId, codBoca, rutaId) {
   if (typeof window.abrirParada !== "function") {
     toastRutaView("La vista de entrega todavía no está cargada.", "error");
@@ -516,9 +361,40 @@ export function abrirParadaDesdeLista(paradaId, codBoca, rutaId) {
   window.abrirParada(pId, cBoca, rId);
 }
 
-/**
- * Vista sin ruta cargada.
- */
+export function filtrarRuta(filtro) {
+  state.filtroRuta = String(filtro || "TODOS").trim().toUpperCase();
+
+  const input = document.getElementById("rutaSearchInput");
+
+  if (input) {
+    state.busquedaRuta = input.value || "";
+  }
+
+  renderRuta();
+}
+
+export function buscarRuta(valor) {
+  state.busquedaRuta = String(valor || "");
+  renderResultadoRuta();
+}
+
+export function cambiarOrdenRuta(orden) {
+  state.ordenRuta = String(orden || "PLANIFICADO").trim().toUpperCase();
+  renderResultadoRuta();
+}
+
+export function limpiarBusquedaRuta() {
+  state.busquedaRuta = "";
+
+  const input = document.getElementById("rutaSearchInput");
+
+  if (input) {
+    input.value = "";
+  }
+
+  renderResultadoRuta();
+}
+
 function renderSinRuta() {
   return `
     <div class="empty-state">
@@ -528,9 +404,6 @@ function renderSinRuta() {
   `;
 }
 
-/**
- * Vista sin resultados luego de filtro o búsqueda.
- */
 function renderSinResultados() {
   return `
     <div class="empty-state">
@@ -539,9 +412,6 @@ function renderSinResultados() {
   `;
 }
 
-/**
- * Toast local de la vista ruta.
- */
 export function toastRutaView(msg, type) {
   const el = document.getElementById("toast");
 
