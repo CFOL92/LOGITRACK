@@ -1,12 +1,13 @@
 // LOGITRACK - main.js
 // Punto central de arranque de la aplicación modular.
 //
-// Versión 1.7:
-// - Fuerza recarga de módulos principales con query ?v=1.7.
+// Versión 1.8:
+// - Fuerza recarga de rutaView.js y entregaView.js con query ?v=1.8.
 // - Mantiene state/config/utils base sin query para evitar duplicar estado interno.
-// - Integra blindaje visual y lógico de Fase 1.2-A.
-// - Corrige visualización del mapa: solo se muestra en vista Mapa.
-// - Evita que el mapa quede visible detrás del Inicio.
+// - Corrige botón Gestionar en módulo Ruta.
+// - Quita botón Ver mapa de las tarjetas de ruta.
+// - Mantiene Ir con GPS.
+// - Mantiene control visual del mapa solo en vista Mapa.
 // - Evita abrir Mapa si no hay ruta cargada.
 // - Evita doble redibujado de Leaflet.
 // - Expone diagnóstico global para consola.
@@ -50,7 +51,7 @@ import {
 import {
   registrarRutaView,
   renderRuta
-} from "./views/rutaView.js?v=1.7";
+} from "./views/rutaView.js?v=1.8";
 
 import {
   registrarMapaView,
@@ -69,7 +70,7 @@ import {
   abrirParada,
   verProductos,
   cerrarPanel
-} from "./views/entregaView.js?v=1.7";
+} from "./views/entregaView.js?v=1.8";
 
 import {
   registrarFacturaActions
@@ -83,7 +84,7 @@ import {
   registrarRutaActions
 } from "./actions/rutaActions.js?v=1.7";
 
-const FRONTEND_BUILD = "v1.7";
+const FRONTEND_BUILD = "v1.8";
 
 /**
  * Arranque principal.
