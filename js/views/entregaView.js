@@ -7,11 +7,15 @@
 // - Gestión intuitiva por producto desde pantalla
 // - Mantener compatibilidad con onclick globales
 //
-// Versión 1.7 - Fase 1.2-B Visual:
-// - Rediseña el panel de gestión para choferes.
-// - Quita "Ir con GPS" y "Refrescar" dentro del módulo de gestión.
-// - Mantiene GPS y Refrescar solamente en pantalla Ruta/Mapa.
-// - Reorganiza cliente, facturas y productos en flujo más profesional.
+// Versión 1.7 - Fase 1.2-B Visual Pro:
+// - Agrega bloque "Estado de entrega" al entrar a Gestionar.
+// - Mantiene Cantidad Ruteada / Planificada como dato fijo.
+// - Permite editar solo Cantidad Entregada / Recibida.
+// - Agrega controles + / - para cantidad entregada.
+// - Entregado total: cantidad entregada = cantidad ruteada.
+// - Parcial: cantidad entregada editable y motivo obligatorio.
+// - Rechazado / No despachado: cantidad entregada = 0 y motivo obligatorio.
+// - Quita GPS y Refrescar dentro del módulo Gestionar.
 // - Centraliza actualización de producto en productoActions.js.
 // - Mantiene bloqueo por soloLectura, rutaCerrada o HISTORICO_CERRADO.
 
@@ -40,6 +44,8 @@ const ESTADOS_PRODUCTO = {
   NO_DESPACHADO: "NO_DESPACHADO"
 };
 
+const ESTADO_ENTREGA_DEFAULT = ESTADOS_PRODUCTO.ENTREGADO_TOTAL;
+
 const MOTIVOS_PRODUCTO = [
   "Cliente no recibe",
   "Producto averiado",
@@ -64,7 +70,11 @@ export function registrarEntregaView() {
   window.setSideBody = setSideBody;
 
   window.toggleOpcionesFactura = toggleOpcionesFactura;
+
+  window.seleccionarEstadoEntrega = seleccionarEstadoEntrega;
   window.seleccionarEstadoProducto = seleccionarEstadoProducto;
+  window.ajustarCantidadProducto = ajustarCantidadProducto;
+  window.sincronizarCantidadProducto = sincronizarCantidadProducto;
   window.guardarGestionProducto = guardarGestionProducto;
   window.limpiarGestionProducto = limpiarGestionProducto;
 
@@ -90,6 +100,7 @@ export async function abrirParada(paradaId, codBoca, rutaId) {
 
   state.paradaActiva = parada;
   state.facturaActiva = null;
+  state.estadoEntregaSeleccionado = ESTADO_ENTREGA_DEFAULT;
 
   actualizarHeaderPanel(parada);
   abrirPanel();
@@ -124,6 +135,7 @@ export function renderFacturas(facturas) {
     setSideBody(`
       ${renderAvisoModoRuta()}
       ${renderHeaderGestionParada(parada)}
+      ${renderEstadoEntrega()}
       ${renderPanelMensaje("No hay facturas para esta parada.")}
     `);
     return;
@@ -132,10 +144,11 @@ export function renderFacturas(facturas) {
   const html = `
     ${renderAvisoModoRuta()}
     ${renderHeaderGestionParada(parada)}
+    ${renderEstadoEntrega()}
 
     <div class="gestion-section-head">
       <div>
-        <div class="gestion-section-title">Facturas a entregar</div>
+        <div class="gestion-section-title">Entrega por documentos</div>
         <div class="gestion-section-subtitle">${facturas.length} factura(s) asociada(s) a este cliente</div>
       </div>
     </div>
@@ -153,11 +166,11 @@ function renderHeaderGestionParada(parada) {
     <div class="gestion-cliente-card">
       <div class="gestion-cliente-top">
         <div>
+          <div class="gestion-small-label">Detalle de parada</div>
           <div class="gestion-cliente-nombre">${escapeHtml(parada.Cliente || parada.Boca || "Cliente")}</div>
           <div class="gestion-cliente-meta">
             CodBoca: ${escapeHtml(parada.CodBoca || "")}<br>
-            ${escapeHtml(parada.Ciudad || "")} | ${escapeHtml(parada.Zona || "")}<br>
-            Dirección: ${escapeHtml(parada.Direccion || "-")}
+            ${escapeHtml(parada.Ciudad || "")} | ${escapeHtml(parada.Zona || "")}
           </div>
         </div>
 
@@ -189,6 +202,115 @@ function renderHeaderGestionParada(parada) {
   `;
 }
 
+function renderEstadoEntrega() {
+  const estadoActual = state.estadoEntregaSeleccionado || ESTADO_ENTREGA_DEFAULT;
+  const bloqueado = rutaBloqueadaParaGestion();
+  const disabledAttr = bloqueado ? "disabled" : "";
+
+  return `
+    <div class="gestion-estado-card">
+      <div class="gestion-section-title" style="margin-bottom:10px;">Estado de entrega</div>
+
+      <div class="gestion-estado-list">
+        ${renderEstadoOption({
+          estado: ESTADOS_PRODUCTO.ENTREGADO_TOTAL,
+          label: "Entregado",
+          ayuda: "Entrega completa de la factura o producto.",
+          estadoActual,
+          disabledAttr
+        })}
+
+        ${renderEstadoOption({
+          estado: ESTADOS_PRODUCTO.ENTREGADO_PARCIAL,
+          label: "Entrega parcial",
+          ayuda: "Permite cargar cantidad entregada real.",
+          estadoActual,
+          disabledAttr
+        })}
+
+        ${renderEstadoOption({
+          estado: ESTADOS_PRODUCTO.RECHAZADO_TOTAL,
+          label: "Rechazado",
+          ayuda: "Cliente rechaza la mercadería.",
+          estadoActual,
+          disabledAttr
+        })}
+
+        ${renderEstadoOption({
+          estado: ESTADOS_PRODUCTO.NO_DESPACHADO,
+          label: "No despachado",
+          ayuda: "Mercadería no salió o no corresponde entregar.",
+          estadoActual,
+          disabledAttr
+        })}
+      </div>
+    </div>
+  `;
+}
+
+function renderEstadoOption({
+  estado,
+  label,
+  ayuda,
+  estadoActual,
+  disabledAttr
+}) {
+  const active = estadoActual === estado ? "active" : "";
+
+  return `
+    <button
+      type="button"
+      class="gestion-estado-option ${active}"
+      ${disabledAttr}
+      onclick="window.seleccionarEstadoEntrega('${escapeAttr(estado)}')"
+    >
+      <span class="gestion-radio-dot"></span>
+      <span>
+        <b>${escapeHtml(label)}</b>
+        <small>${escapeHtml(ayuda)}</small>
+      </span>
+    </button>
+  `;
+}
+
+export function seleccionarEstadoEntrega(estado) {
+  if (rutaBloqueadaParaGestion()) {
+    toastEntrega(mensajeRutaBloqueada(), "error");
+    return;
+  }
+
+  const estadoNormalizado = String(estado || "").trim().toUpperCase();
+
+  if (!Object.values(ESTADOS_PRODUCTO).includes(estadoNormalizado)) {
+    toastEntrega("Estado de entrega inválido.", "error");
+    return;
+  }
+
+  state.estadoEntregaSeleccionado = estadoNormalizado;
+
+  document.querySelectorAll(".gestion-estado-option").forEach(btn => {
+    btn.classList.remove("active");
+  });
+
+  document.querySelectorAll(".gestion-estado-option").forEach(btn => {
+    const onclick = btn.getAttribute("onclick") || "";
+    if (onclick.includes(estadoNormalizado)) {
+      btn.classList.add("active");
+    }
+  });
+
+  aplicarEstadoEntregaAProductosVisibles(estadoNormalizado);
+}
+
+function aplicarEstadoEntregaAProductosVisibles(estado) {
+  document.querySelectorAll(".producto-gestion-card").forEach(card => {
+    const productoId = card.dataset.productoId || "";
+    if (productoId) {
+      seleccionarEstadoProducto(productoId, estado);
+    }
+  });
+}
+
 function renderFacturaCard(f) {
   const estado = cleanEstado(f.EstadoFactura || "PENDIENTE");
   const facturaId = String(f.FacturaID || "");
@@ -215,7 +337,7 @@ function renderFacturaCard(f) {
 
       <div class="gestion-action-primary">
         <button class="btn-secondary" onclick="window.verProductos('${escapeAttr(facturaId)}')">
-          Ver productos
+          Gestionar productos
         </button>
 
         <button
@@ -306,6 +428,7 @@ export function renderProductos(facturaId, productos) {
     setSideBody(`
       ${renderAvisoModoRuta()}
       ${renderBotonVolverFacturas()}
+      ${renderEstadoEntrega()}
       ${renderPanelMensaje("No hay productos para esta factura.")}
     `);
     return;
@@ -316,13 +439,16 @@ export function renderProductos(facturaId, productos) {
   const html = `
     ${renderAvisoModoRuta()}
     ${renderBotonVolverFacturas()}
+    ${renderEstadoEntrega()}
 
     ${factura ? renderHeaderFacturaProductos(factura) : ""}
 
     <div class="gestion-section-head">
       <div>
-        <div class="gestion-section-title">Productos de la factura</div>
-        <div class="gestion-section-subtitle">Seleccione el resultado de entrega por producto</div>
+        <div class="gestion-section-title">Productos asociados</div>
+        <div class="gestion-section-subtitle">
+          La cantidad ruteada no se modifica. Solo registre la cantidad entregada real.
+        </div>
       </div>
     </div>
 
@@ -330,6 +456,10 @@ export function renderProductos(facturaId, productos) {
   `;
 
   setSideBody(html);
+
+  setTimeout(() => {
+    aplicarEstadoEntregaAProductosVisibles(state.estadoEntregaSeleccionado || ESTADO_ENTREGA_DEFAULT);
+  }, 50);
 }
 
 function renderHeaderFacturaProductos(factura) {
@@ -358,6 +488,7 @@ function renderProductoCard(p) {
   const estado = cleanEstado(p.EstadoProducto || "PENDIENTE");
   const productoFacturaId = String(p.ProductoFacturaID || "");
   const planificado = toNumber(p.CantidadPlanificada);
+  const cantidadActual = obtenerCantidadInicialEntregada(p, planificado);
   const bloqueado = rutaBloqueadaParaGestion();
   const disabledAttr = bloqueado ? "disabled" : "";
   const disabledTitle = bloqueado ? `title="${escapeAttr(mensajeRutaBloqueada())}"` : "";
@@ -377,7 +508,7 @@ function renderProductoCard(p) {
 
           <div class="gestion-producto-meta">
             Código: ${escapeHtml(p.CodProducto || "")}<br>
-            Planificado: ${formatoNum.format(planificado)} ${escapeHtml(p.UnidadMedida || "")}<br>
+            Cantidad ruteada: <b>${formatoNum.format(planificado)} ${escapeHtml(p.UnidadMedida || "")}</b><br>
             Cajas: ${formatoNum.format(toNumber(p.CajasCalculadas))} |
             Pallets: ${formatoNum.format(toNumber(p.PalletsCalculados))} |
             Peso: ${formatoNum.format(toNumber(p.PesoKgCalculado))} kg
@@ -388,12 +519,52 @@ function renderProductoCard(p) {
       </div>
 
       <div class="gestion-producto-resultado">
-        Entregado: ${escapeHtml(p.CantidadEntregada || "-")} |
+        Registrado entregado: ${escapeHtml(p.CantidadEntregada || "-")} |
         Rechazado: ${escapeHtml(p.CantidadRechazada || "-")}<br>
         Motivo: ${escapeHtml(p.MotivoProducto || "-")}
       </div>
 
-      <div class="gestion-mini-label">Tipo de entrega</div>
+      <div class="gestion-mini-label">Cantidad entregada real</div>
+
+      <div class="gestion-qty-control">
+        <button
+          type="button"
+          class="gestion-qty-btn"
+          ${disabledAttr}
+          ${disabledTitle}
+          onclick="window.ajustarCantidadProducto('${escapeAttr(productoFacturaId)}', -1)"
+        >
+          −
+        </button>
+
+        <input
+          class="producto-cantidad-input"
+          type="number"
+          inputmode="decimal"
+          min="0"
+          step="0.01"
+          value="${escapeAttr(cantidadActual)}"
+          onchange="window.sincronizarCantidadProducto('${escapeAttr(productoFacturaId)}')"
+        />
+
+        <button
+          type="button"
+          class="gestion-qty-btn"
+          ${disabledAttr}
+          ${disabledTitle}
+          onclick="window.ajustarCantidadProducto('${escapeAttr(productoFacturaId)}', 1)"
+        >
+          +
+        </button>
+      </div>
+
+      <div class="gestion-diferencia-line">
+        Ruteado: <b>${formatoNum.format(planificado)}</b> |
+        Entregado: <b class="producto-cantidad-preview">${formatoNum.format(toNumber(cantidadActual))}</b> |
+        Diferencia: <b class="producto-diferencia-preview">${formatoNum.format(Math.max(planificado - toNumber(cantidadActual), 0))}</b>
+      </div>
+
+      <div class="gestion-mini-label">Resultado del producto</div>
 
       <div class="gestion-product-status-grid">
         <button
@@ -438,18 +609,6 @@ function renderProductoCard(p) {
           Seleccione un tipo de entrega.
         </div>
 
-        <div class="form-group producto-cantidad-wrap" style="display:none;">
-          <label>Cantidad entregada</label>
-          <input
-            class="producto-cantidad-input"
-            type="number"
-            inputmode="decimal"
-            min="0"
-            step="0.01"
-            placeholder="Ej: ${escapeAttr(planificado)}"
-          />
-        </div>
-
         <div class="form-group producto-motivo-wrap" style="display:none;">
           <label>Motivo</label>
           <select class="producto-motivo-select">
@@ -487,6 +646,16 @@ function renderProductoCard(p) {
       </div>
     </div>
   `;
+}
+
+function obtenerCantidadInicialEntregada(p, planificado) {
+  const entregado = toNumber(p.CantidadEntregada);
+
+  if (entregado > 0) {
+    return String(entregado);
+  }
+
+  return String(planificado || 0);
 }
 
 export function seleccionarEstadoProducto(productoFacturaId, estado) {
@@ -531,44 +700,153 @@ export function seleccionarEstadoProducto(productoFacturaId, estado) {
 function actualizarFormularioProducto(card, estado) {
   const form = card.querySelector(".producto-form");
   const ayuda = card.querySelector(".producto-ayuda");
-  const cantidadWrap = card.querySelector(".producto-cantidad-wrap");
   const motivoWrap = card.querySelector(".producto-motivo-wrap");
   const motivoOtroWrap = card.querySelector(".producto-motivo-otro-wrap");
-  const cantidadInput = card.querySelector(".producto-cantidad-input");
   const motivoSelect = card.querySelector(".producto-motivo-select");
   const motivoOtro = card.querySelector(".producto-motivo-otro");
+  const cantidadInput = card.querySelector(".producto-cantidad-input");
+  const planificado = toNumber(card.dataset.planificado || 0);
 
   if (form) form.style.display = "block";
-
-  if (cantidadWrap) cantidadWrap.style.display = "none";
   if (motivoWrap) motivoWrap.style.display = "none";
   if (motivoOtroWrap) motivoOtroWrap.style.display = "none";
-
-  if (cantidadInput) cantidadInput.value = "";
   if (motivoSelect) motivoSelect.value = "";
   if (motivoOtro) motivoOtro.value = "";
 
   if (estado === ESTADOS_PRODUCTO.ENTREGADO_TOTAL) {
-    if (ayuda) ayuda.innerHTML = "Se registrará como <b>entregado total</b>.";
+    if (cantidadInput) {
+      cantidadInput.value = String(planificado || 0);
+      cantidadInput.disabled = true;
+    }
+
+    actualizarVistaCantidadProducto(card);
+
+    if (ayuda) {
+      ayuda.innerHTML = "Se registrará como <b>entregado total</b>. La cantidad entregada será igual a la ruteada.";
+    }
+
     return;
   }
 
   if (estado === ESTADOS_PRODUCTO.ENTREGADO_PARCIAL) {
-    if (ayuda) ayuda.innerHTML = "Ingrese la cantidad entregada y seleccione el motivo.";
-    if (cantidadWrap) cantidadWrap.style.display = "block";
+    if (cantidadInput) {
+      cantidadInput.disabled = false;
+
+      if (toNumber(cantidadInput.value) >= planificado && planificado > 0) {
+        cantidadInput.value = String(Math.max(planificado - 1, 0));
+      }
+    }
+
+    actualizarVistaCantidadProducto(card);
+
+    if (ayuda) {
+      ayuda.innerHTML = "Entrega parcial: ajuste la cantidad entregada real y seleccione motivo.";
+    }
+
     if (motivoWrap) motivoWrap.style.display = "block";
     return;
   }
 
   if (estado === ESTADOS_PRODUCTO.RECHAZADO_TOTAL) {
-    if (ayuda) ayuda.innerHTML = "Seleccione el motivo del rechazo.";
+    if (cantidadInput) {
+      cantidadInput.value = "0";
+      cantidadInput.disabled = true;
+    }
+
+    actualizarVistaCantidadProducto(card);
+
+    if (ayuda) {
+      ayuda.innerHTML = "Rechazo total: la cantidad entregada será 0. Seleccione motivo.";
+    }
+
     if (motivoWrap) motivoWrap.style.display = "block";
     return;
   }
 
   if (estado === ESTADOS_PRODUCTO.NO_DESPACHADO) {
-    if (ayuda) ayuda.innerHTML = "Seleccione el motivo de no despachado.";
+    if (cantidadInput) {
+      cantidadInput.value = "0";
+      cantidadInput.disabled = true;
+    }
+
+    actualizarVistaCantidadProducto(card);
+
+    if (ayuda) {
+      ayuda.innerHTML = "No despachado: la cantidad entregada será 0. Seleccione motivo.";
+    }
+
     if (motivoWrap) motivoWrap.style.display = "block";
+  }
+}
+
+export function ajustarCantidadProducto(productoFacturaId, delta) {
+  const card = buscarCardProducto(productoFacturaId);
+
+  if (!card) return;
+
+  const estado = String(card.dataset.estadoSeleccionado || "").trim().toUpperCase();
+
+  if (estado !== ESTADOS_PRODUCTO.ENTREGADO_PARCIAL) {
+    toastEntrega("Solo puede modificar cantidad cuando el estado es Entrega parcial.", "error");
+    return;
+  }
+
+  const input = card.querySelector(".producto-cantidad-input");
+  const planificado = toNumber(card.dataset.planificado || 0);
+
+  if (!input) return;
+
+  const actual = toNumber(input.value || 0);
+  let nuevo = actual + Number(delta || 0);
+
+  if (nuevo < 0) nuevo = 0;
+  if (planificado > 0 && nuevo > planificado) nuevo = planificado;
+
+  input.value = String(nuevo);
+  actualizarVistaCantidadProducto(card);
+}
+
+export function sincronizarCantidadProducto(productoFacturaId) {
+  const card = buscarCardProducto(productoFacturaId);
+
+  if (!card) return;
+
+  const input = card.querySelector(".producto-cantidad-input");
+  const planificado = toNumber(card.dataset.planificado || 0);
+
+  if (!input) return;
+
+  let value = normalizarCantidad(input.value);
+
+  if (!value) {
+    value = "0";
+  }
+
+  let numero = toNumber(value);
+
+  if (numero < 0) numero = 0;
+  if (planificado > 0 && numero > planificado) numero = planificado;
+
+  input.value = String(numero);
+
+  actualizarVistaCantidadProducto(card);
+}
+
+function actualizarVistaCantidadProducto(card) {
+  const input = card.querySelector(".producto-cantidad-input");
+  const entregadoPreview = card.querySelector(".producto-cantidad-preview");
+  const diferenciaPreview = card.querySelector(".producto-diferencia-preview");
+
+  const planificado = toNumber(card.dataset.planificado || 0);
+  const entregado = toNumber(input?.value || 0);
+  const diferencia = Math.max(planificado - entregado, 0);
+
+  if (entregadoPreview) {
+    entregadoPreview.textContent = formatoNum.format(entregado);
+  }
+
+  if (diferenciaPreview) {
+    diferenciaPreview.textContent = formatoNum.format(diferencia);
   }
 }
 
@@ -592,6 +870,10 @@ export async function guardarGestionProducto(productoFacturaId) {
   let cantidadEntregada = "";
   let motivo = "";
 
+  if (estadoProducto === ESTADOS_PRODUCTO.ENTREGADO_TOTAL) {
+    cantidadEntregada = "";
+  }
+
   if (estadoProducto === ESTADOS_PRODUCTO.ENTREGADO_PARCIAL) {
     cantidadEntregada = normalizarCantidad(card.querySelector(".producto-cantidad-input")?.value || "");
 
@@ -603,7 +885,7 @@ export async function guardarGestionProducto(productoFacturaId) {
     const planificado = toNumber(card.dataset.planificado || 0);
 
     if (planificado > 0 && toNumber(cantidadEntregada) >= planificado) {
-      toastEntrega("Para entrega parcial, la cantidad debe ser menor a la planificada.", "error");
+      toastEntrega("Para entrega parcial, la cantidad debe ser menor a la ruteada.", "error");
       return;
     }
   }
@@ -653,9 +935,14 @@ export function limpiarGestionProducto(productoFacturaId) {
 
   if (form) form.style.display = "none";
   if (ayuda) ayuda.textContent = "Seleccione un tipo de entrega.";
-  if (cantidadInput) cantidadInput.value = "";
+  if (cantidadInput) {
+    cantidadInput.disabled = false;
+    cantidadInput.value = card.dataset.planificado || "0";
+  }
   if (motivoSelect) motivoSelect.value = "";
   if (motivoOtro) motivoOtro.value = "";
+
+  actualizarVistaCantidadProducto(card);
 }
 
 function renderBotonVolverFacturas() {
@@ -859,7 +1146,7 @@ function normalizarCantidad(value) {
 
   const numero = Number(raw);
 
-  if (!Number.isFinite(numero) || numero <= 0) {
+  if (!Number.isFinite(numero) || numero < 0) {
     return "";
   }
 
