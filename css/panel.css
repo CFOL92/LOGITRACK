@@ -1,126 +1,383 @@
-/* LOGITRACK - Estado de entrega y cantidades v1.7 */
+/* ==========================================================================
+   LOGITRACK PRO - SIDE PANEL & GESTION MODULE
+   Versión: 1.9 (Refactor Visual Profesional)
+   ========================================================================== */
 
-.gestion-small-label {
-  color: #64748b;
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 4px;
+/* 1. CONTENEDOR DEL PANEL LATERAL
+   -------------------------------------------------------------------------- */
+.side-panel {
+  position: fixed;
+  right: -100%;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 460px; /* Ancho óptimo para legibilidad sin verse estirado en tablets */
+  background-color: var(--bg-app);
+  z-index: 2500;
+  display: flex;
+  flex-direction: column;
+  /* Transición más fluida y elástica al abrir/cerrar */
+  transition: right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -15px 0 40px rgba(15, 23, 42, 0.15);
 }
 
-.gestion-estado-card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  padding: 14px;
-  margin-bottom: 12px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+.side-panel.active {
+  right: 0;
 }
 
-.gestion-estado-list {
+/* 2. CABECERA DEL PANEL (Header)
+   -------------------------------------------------------------------------- */
+.side-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background-color: var(--bg-card);
+  border-bottom: 1px solid #e2e8f0;
+  padding: 20px 18px;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.02);
+}
+
+.side-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--surface-header);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.side-subtitle {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.side-close {
+  border: none;
+  background-color: #f1f5f9;
+  color: var(--brand-neutral);
+  border-radius: 50%; /* Botón circular modal estilo iOS */
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
   display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.side-close:active {
+  background-color: #e2e8f0;
+  transform: scale(0.9);
+}
+
+/* 3. CUERPO DEL PANEL (Área de Scroll)
+   -------------------------------------------------------------------------- */
+.side-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+  /* Scroll suave en iOS */
+  -webkit-overflow-scrolling: touch; 
+}
+
+/* 4. TARJETAS DE GESTIÓN (Cards)
+   -------------------------------------------------------------------------- */
+.gestion-cliente-card, 
+.gestion-estado-card, 
+.gestion-factura-card, 
+.gestion-producto-card, 
+.gestion-factura-resumen {
+  background-color: var(--bg-card);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  padding: 18px 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.gestion-cliente-top, 
+.gestion-factura-head, 
+.gestion-producto-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.gestion-small-label, 
+.gestion-mini-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.gestion-cliente-nombre, 
+.gestion-section-title, 
+.gestion-factura-title, 
+.gestion-producto-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--surface-header);
+  line-height: 1.25;
+}
+
+.gestion-cliente-meta, 
+.gestion-section-subtitle, 
+.gestion-factura-meta, 
+.gestion-producto-meta, 
+.gestion-producto-resultado {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* 5. CUADRÍCULA DE KPIs DEL CLIENTE
+   -------------------------------------------------------------------------- */
+.gestion-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.gestion-kpi {
+  background-color: #f8fafc;
+  border: 1px solid #f1f5f9;
+  border-radius: var(--radius-md);
+  text-align: center;
+  padding: 10px 6px;
+}
+
+.gestion-kpi b {
+  display: block;
+  font-size: 15px;
+  color: var(--surface-header);
+  margin-bottom: 2px;
+}
+
+.gestion-kpi span {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* 6. SELECTOR DE ESTADOS (Radio Cards Nativos)
+   -------------------------------------------------------------------------- */
+.gestion-estado-list, 
+.gestion-product-status-grid, 
+.gestion-action-primary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .gestion-estado-option {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  border: 2px solid transparent; /* Reserva espacio para el borde activo */
+  background-color: #f8fafc;
+  border-radius: var(--radius-md);
+  padding: 14px 12px;
   text-align: left;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  border-radius: 13px;
-  padding: 11px 12px;
-  color: #0f172a;
+  display: flex;
+  align-items: flex-start; /* Alinea icono arriba si hay texto de ayuda */
+  gap: 12px;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  box-shadow: inset 0 0 0 1px #e2e8f0; /* Borde interno sutil */
 }
 
-.gestion-estado-option.active {
-  background: #eff6ff;
-  border-color: #0284c7;
-  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.08);
+.gestion-estado-option:active:not([disabled]) {
+  transform: scale(0.98);
+}
+
+.gestion-estado-option[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .gestion-radio-dot {
-  width: 17px;
-  height: 17px;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
-  border: 1.5px solid #94a3b8;
-  flex: 0 0 auto;
+  border: 2px solid #94a3b8;
+  margin-top: 2px;
+  transition: var(--transition-fast);
+}
+
+/* Tarjeta activa: Borde azul y sombreado celeste */
+.gestion-estado-option.active {
+  background-color: #f0f9ff;
+  border-color: var(--brand-primary);
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.1);
 }
 
 .gestion-estado-option.active .gestion-radio-dot {
-  border: 5px solid #0369a1;
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  /* Punto blanco interno */
+  box-shadow: inset 0 0 0 3px #f0f9ff; 
 }
 
-.gestion-estado-option b {
-  display: block;
-  font-size: 13px;
-  font-weight: 950;
-}
-
-.gestion-estado-option small {
-  display: block;
-  color: #64748b;
-  font-size: 10px;
-  font-weight: 700;
-  margin-top: 2px;
-}
-
+/* 7. CONTROLES DE CANTIDAD (+ / - Stepper)
+   -------------------------------------------------------------------------- */
 .gestion-qty-control {
   display: grid;
-  grid-template-columns: 48px 1fr 48px;
-  gap: 0;
-  background: #f1f5f9;
-  border-radius: 14px;
-  padding: 8px;
-  margin-top: 6px;
+  grid-template-columns: 56px 1fr 56px; /* Botones más anchos */
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
 }
 
 .gestion-qty-btn {
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #0f172a;
-  font-size: 20px;
-  font-weight: 950;
-  min-height: 42px;
+  border: none;
+  background-color: #f1f5f9;
+  color: var(--surface-header-alt);
+  border-radius: var(--radius-md);
+  font-size: 24px;
+  font-weight: 500;
+  height: 52px; /* Área táctil inmensa */
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
 }
 
-.gestion-qty-btn:first-child {
-  border-radius: 11px 0 0 11px;
-}
-
-.gestion-qty-btn:last-child {
-  border-radius: 0 11px 11px 0;
+.gestion-qty-btn:active:not([disabled]) {
+  background-color: #e2e8f0;
+  transform: scale(0.95);
 }
 
 .producto-cantidad-input {
-  border: 1px solid #cbd5e1;
-  border-left: none;
-  border-right: none;
-  background: #ffffff;
-  color: #0f172a;
   text-align: center;
-  font-size: 15px;
-  font-weight: 950;
-  min-height: 42px;
-  outline: none;
+  font-size: 20px;
+  font-weight: 800;
+  border: 2px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  height: 52px;
+  color: var(--brand-primary);
+  background-color: #ffffff;
+}
+
+.producto-cantidad-input:focus {
+  border-color: var(--brand-primary);
+  background-color: #f0f9ff;
 }
 
 .producto-cantidad-input:disabled {
-  background: #e2e8f0;
-  color: #475569;
+  background-color: #f8fafc;
+  color: var(--text-muted);
+  border-color: #e2e8f0;
 }
 
 .gestion-diferencia-line {
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 9px 10px;
-  margin-top: 8px;
-  color: #475569;
-  font-size: 11px;
+  font-size: 13px;
+  background-color: #f1f5f9;
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  margin: 12px 0;
+  color: var(--text-main);
+}
+
+.gestion-diferencia-line b {
+  color: var(--surface-header);
+}
+
+/* 8. BOTONES AUXILIARES Y DE EXCEPCIÓN
+   -------------------------------------------------------------------------- */
+.gestion-back-btn {
+  border: none;
+  background-color: transparent;
+  color: var(--brand-neutral);
+  padding: 8px 0;
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 16px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.gestion-back-btn:active {
+  transform: translateX(-4px); /* Animación de retroceso natural */
+}
+
+.gestion-link-danger {
+  border: none;
+  background: transparent;
+  color: var(--status-rechazado-text);
+  font-weight: 700;
+  margin-top: 12px;
+  padding: 8px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gestion-exception-box {
+  background-color: #fef2f2;
+  border: 1px dashed #fca5a5;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-top: 12px;
+}
+
+.gestion-exception-title {
+  color: var(--status-rechazado-text);
   font-weight: 800;
-  line-height: 1.35;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.gestion-exception-text {
+  color: #991b1b;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+/* 9. ESTADOS DE CARGA Y ADVERTENCIAS
+   -------------------------------------------------------------------------- */
+.panel-empty, 
+.panel-loading {
+  background-color: var(--bg-card);
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--radius-lg);
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.cierre-warning {
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.gestion-alert-info {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  font-weight: 600;
 }
