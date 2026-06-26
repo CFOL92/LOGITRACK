@@ -7,8 +7,10 @@
 // - Gestión intuitiva por producto desde pantalla
 // - Mantener compatibilidad con onclick globales
 //
-// Versión 1.7 - Fase 1.2-B Visual Pro:
-// - Agrega bloque "Estado de entrega" al entrar a Gestionar.
+// Versión 1.9 - Fase Gestión Robusta:
+// - Registra window.abrirParadaObjeto.
+// - Permite abrir gestión usando el objeto completo de parada.
+// - Si buscarParadaPorClaves falla, busca la parada directamente en state.paradas.
 // - Mantiene Cantidad Ruteada / Planificada como dato fijo.
 // - Permite editar solo Cantidad Entregada / Recibida.
 // - Agrega controles + / - para cantidad entregada.
@@ -26,7 +28,7 @@ import {
   cargarFacturasParada,
   cargarProductosFactura,
   buscarFactura
-} from "../services/routeService.js?v=1.7";
+} from "../services/routeService.js?v=1.9";
 
 import {
   cleanEstado,
@@ -35,7 +37,7 @@ import {
   formatoNum,
   formatoGs,
   toNumber
-} from "../utils.js?v=1.7";
+} from "../utils.js?v=1.9";
 
 const ESTADOS_PRODUCTO = {
   ENTREGADO_TOTAL: "ENTREGADO_TOTAL",
@@ -61,6 +63,7 @@ const MOTIVOS_PRODUCTO = [
 
 export function registrarEntregaView() {
   window.abrirParada = abrirParada;
+  window.abrirParadaObjeto = abrirParadaObjeto;
   window.abrirParadaDesdeLista = abrirParadaDesdeLista;
   window.verProductos = verProductos;
   window.volverAFacturas = volverAFacturas;
@@ -91,16 +94,37 @@ export async function abrirParada(paradaId, codBoca, rutaId) {
     paradaId,
     codBoca,
     rutaId
-  });
+  }) || buscarParadaLocalEntrega(paradaId, codBoca, rutaId);
 
   if (!parada) {
-    toastEntrega("No se encontró la parada.", "error");
+    console.error("LOGITRACK abrirParada: no se encontró parada.", {
+      paradaId,
+      codBoca,
+      rutaId,
+      totalParadas: Array.isArray(state.paradas) ? state.paradas.length : 0
+    });
+
+    toastEntrega("No se encontró la parada para gestionar.", "error");
     return;
   }
 
+  await abrirParadaObjeto(parada);
+}
+
+export async function abrirParadaObjeto(parada) {
+  if (!parada || typeof parada !== "object") {
+    toastEntrega("Parada inválida para gestionar.", "error");
+    return;
+  }
+
+  console.log("LOGITRACK abrirParadaObjeto:", parada);
+
   state.paradaActiva = parada;
   state.facturaActiva = null;
-  state.estadoEntregaSeleccionado = ESTADO_ENTREGA_DEFAULT;
+
+  if (!state.estadoEntregaSeleccionado) {
+    state.estadoEntregaSeleccionado = ESTADO_ENTREGA_DEFAULT;
+  }
 
   actualizarHeaderPanel(parada);
   abrirPanel();
@@ -111,6 +135,7 @@ export async function abrirParada(paradaId, codBoca, rutaId) {
     const result = await cargarFacturasParada(parada);
 
     if (!result.ok) {
+      console.error("LOGITRACK cargarFacturasParada error:", result);
       setSideBody(renderPanelMensaje(result.mensaje || "No se pudieron cargar las facturas."));
       return;
     }
@@ -118,9 +143,30 @@ export async function abrirParada(paradaId, codBoca, rutaId) {
     renderFacturas(result.data || []);
 
   } catch (error) {
-    console.error("LOGITRACK abrirParada error:", error);
+    console.error("LOGITRACK abrirParadaObjeto error:", error);
     setSideBody(renderPanelMensaje("Error al cargar facturas:\n" + (error.message || error), true));
   }
+}
+
+function buscarParadaLocalEntrega(paradaId, codBoca, rutaId) {
+  const pId = String(paradaId || "").trim();
+  const cBoca = String(codBoca || "").trim();
+  const rId = String(rutaId || "").trim();
+
+  const paradas = Array.isArray(state.paradas) ? state.paradas : [];
+
+  return paradas.find(p =>
+    pId &&
+    String(p.ParadaID || "").trim() === pId
+  ) || paradas.find(p =>
+    rId &&
+    cBoca &&
+    String(p.RutaID || "").trim() === rId &&
+    String(p.CodBoca || "").trim() === cBoca
+  ) || paradas.find(p =>
+    cBoca &&
+    String(p.CodBoca || "").trim() === cBoca
+  ) || null;
 }
 
 export function renderFacturas(facturas) {
