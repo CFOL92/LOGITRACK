@@ -1,162 +1,300 @@
-/* LOGITRACK - base.css */
+/* ==========================================================================
+   LOGITRACK PRO - SYSTEM DESIGN & BASE SYSTEM
+   Versión: 1.9 (Refactor Visual Profesional)
+   ========================================================================== */
 
+/* 1. TOKENS DE DISEÑO (Variables Globales) 
+   -------------------------------------------------------------------------- */
 :root {
-  --primary: #0284c7;
-  --primary-dark: #0369a1;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --neutral: #64748b;
-  --dark: #0f172a;
-  --muted: #64748b;
-  --line: #e2e8f0;
-  --bg: #f1f5f9;
-  --panel: rgba(255, 255, 255, 0.98);
-  --shadow: 0 14px 35px rgba(15, 23, 42, 0.16);
+  /* Paleta Estructural (Modern Slate / Zinc) */
+  --bg-app: #f8fafc;           /* Fondo gris ultra-claro y limpio (Slate 50) */
+  --bg-card: #ffffff;          /* Blanco puro para destacar tarjetas y paneles */
+  --surface-header: #0f172a;   /* Azul oscuro profundo corporativo (Slate 900) */
+  --surface-header-alt: #1e293b;
+  
+  /* Colores de Marca y Acciones Básicas */
+  --brand-primary: #0284c7;     /* Azul operativo enfocado (Sky 600) */
+  --brand-primary-hover: #0369a1;
+  --brand-neutral: #64748b;     /* Gris neutro profesional (Slate 500) */
+  --brand-neutral-hover: #475569;
+
+  /* Semántica de Estados Logísticos (Estrictos y de Alto Contraste) */
+  --status-pendiente-bg: #e0f2fe;   /* Celeste sutil */
+  --status-pendiente-text: #0369a1; /* Azul informativo */
+  
+  --status-entregado-bg: #dcfce7;   /* Verde éxito sutil */
+  --status-entregado-text: #15803d; /* Verde oscuro legible */
+  
+  --status-parcial-bg: #fef3c7;     /* Ámbar sutil */
+  --status-parcial-text: #b45309;   /* Marrón/Miel legible */
+  
+  --status-rechazado-bg: #fee2e2;   /* Rojo/Rosa sutil */
+  --status-rechazado-text: #b91c1c; /* Rojo oscuro legible */
+
+  /* Tipografía Corporativa */
+  --font-stack: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --text-main: #1e293b;        /* Gris pizarra oscuro (Evita el negro puro #000) */
+  --text-muted: #64748b;       /* Gris secundario para metadatos */
+  
+  /* Bordes, Sombras y Radio */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.08);
+
+  /* Transiciones Fluidas */
+  --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-* {
+/* 2. RESET Y NORMALIZACIÓN (Box-Sizing Avanzado)
+   -------------------------------------------------------------------------- */
+*, *::before, *::after {
   box-sizing: border-box;
-}
-
-body {
   margin: 0;
   padding: 0;
-  font-family: Inter, Arial, sans-serif;
-  overflow: hidden;
-  background: var(--bg);
-  color: var(--dark);
+  -webkit-tap-highlight-color: transparent; /* Remueve destello azul molesto en móviles */
 }
 
-button {
+html, body {
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-app);
+  font-family: var(--font-stack);
+  color: var(--text-main);
+  font-size: 14px; /* Base óptima para pantallas móviles ruteadas */
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Soporte para la clase del body actual */
+body.zoom-low {
+  font-size: 13.5px;
+}
+
+/* 3. TIPOGRAFÍA Y JERARQUÍA PROFESIONAL
+   -------------------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--surface-header);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+small {
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+b, strong {
+  font-weight: 600;
+}
+
+/* 4. BOTONES DEL SISTEMA (Área de Contacto Optimizada 48x48)
+   -------------------------------------------------------------------------- */
+button, .btn-primary, .btn-secondary, .btn-success, .btn-danger, .btn-neutral {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-stack);
+  font-weight: 600;
+  font-size: 14px;
+  min-height: 44px; /* Touch target optimizado para calle y vibración */
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
   border: none;
-  border-radius: 10px;
-  padding: 12px 14px;
   cursor: pointer;
-  font-weight: 900;
-  font-size: 12px;
-  transition: 0.15s;
+  transition: var(--transition-fast);
+  text-align: center;
+  user-select: none;
+  box-shadow: var(--shadow-sm);
 }
 
-button:active {
-  transform: scale(0.98);
+/* Estados Interactivos Generales */
+button:active:not(:disabled) {
+  transform: scale(0.97); /* Feedback háptico visual inmediato */
 }
 
 button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none !important;
 }
 
+/* Variantes Cromáticas Corporativas */
 .btn-primary {
-  width: 100%;
-  background: var(--primary);
+  background-color: var(--brand-primary);
   color: #ffffff;
-  padding: 14px;
-  font-size: 14px;
 }
-
-.btn-primary:hover {
-  background: var(--primary-dark);
-}
+.btn-primary:hover { background-color: var(--brand-primary-hover); }
 
 .btn-secondary {
-  background: #f1f5f9;
-  color: #334155;
-  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: var(--text-main);
+  border: 1px solid #e2e8f0;
 }
+.btn-secondary:hover { background-color: #f1f5f9; }
 
 .btn-success {
-  background: var(--success);
+  background-color: var(--status-entregado-text);
   color: #ffffff;
 }
-
-.btn-warning {
-  background: var(--warning);
-  color: #ffffff;
-}
+.btn-success:hover { filter: brightness(0.9); }
 
 .btn-danger {
-  background: var(--danger);
+  background-color: var(--status-rechazado-text);
   color: #ffffff;
 }
+.btn-danger:hover { filter: brightness(0.9); }
 
 .btn-neutral {
-  background: var(--neutral);
+  background-color: var(--brand-neutral);
   color: #ffffff;
 }
+.btn-neutral:hover { background-color: var(--brand-neutral-hover); }
 
+/* 5. INSIGNIAS / BADGES DE ESTADO LOGÍSTICO
+   -------------------------------------------------------------------------- */
 .badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 74px;
-  padding: 4px 7px;
-  border-radius: 999px;
-  color: #ffffff;
-  font-size: 8px;
-  font-weight: 900;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: var(--radius-sm);
   white-space: nowrap;
 }
 
+/* Mapeo estricto con utils.js cleanEstado() */
 .badge.PENDIENTE {
-  background: var(--primary);
+  background-color: var(--status-pendiente-bg);
+  color: var(--status-pendiente-text);
 }
 
-.badge.ENTREGADO,
-.badge.ENTREGADO_TOTAL {
-  background: var(--success);
+.badge.ENTREGADO, .badge.ENTREGADO_TOTAL {
+  background-color: var(--status-entregado-bg);
+  color: var(--status-entregado-text);
 }
 
-.badge.PARCIAL,
-.badge.ENTREGADO_PARCIAL {
-  background: var(--warning);
+.badge.PARCIAL, .badge.ENTREGADO_PARCIAL {
+  background-color: var(--status-parcial-bg);
+  color: var(--status-parcial-text);
 }
 
-.badge.RECHAZADO,
-.badge.RECHAZADO_TOTAL {
-  background: var(--danger);
+.badge.RECHAZADO, .badge.RECHAZADO_TOTAL, .badge.NO_DESPACHADO {
+  background-color: var(--status-rechazado-bg);
+  color: var(--status-rechazado-text);
 }
 
-.badge.NO_DESPACHADO {
-  background: var(--neutral);
+/* 6. INPUTS Y CONTROLES FORMULARIOS
+   -------------------------------------------------------------------------- */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select,
+textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-family: var(--font-stack);
+  font-size: 14px;
+  color: var(--text-main);
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-md);
+  transition: var(--transition-fast);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+  appearance: none; /* Elimina estilos nativos de iOS */
 }
 
+/* Foco de Alta Visibilidad Profesional */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+/* Checkbox Modernizado */
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--brand-primary);
+  cursor: pointer;
+}
+
+/* 7. NOTIFICACIONES COMPONENTES: TOAST FLOTANTE UX
+   -------------------------------------------------------------------------- */
 .toast {
   position: fixed;
+  bottom: -100px; /* Escondido por defecto abajo */
   left: 50%;
-  bottom: 18px;
   transform: translateX(-50%);
-  z-index: 4000;
-  background: #0f172a;
+  width: calc(100% - 32px);
+  max-width: 450px;
+  background-color: #1e293b; /* Fondo oscuro elegante */
   color: #ffffff;
-  padding: 12px 16px;
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  font-size: 13px;
-  display: none;
-  max-width: 92vw;
-  white-space: pre-wrap;
+  padding: 14px 20px;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-size: 13.5px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  z-index: 9999;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+  opacity: 0;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Clase activada dinámicamente por JS */
 .toast.active {
-  display: block;
+  bottom: 24px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(-8px);
+}
+
+/* Variantes semánticas del Toast */
+.toast.ok {
+  border-left: 4px solid var(--status-entregado-text);
+  background-color: #0f172a;
 }
 
 .toast.error {
-  background: #991b1b;
+  border-left: 4px solid var(--status-rechazado-text);
+  background-color: #450a0a; /* Rojo vino oscuro muy profesional */
 }
 
-.toast.ok {
-  background: #166534;
+/* 8. ELEMENTOS DE CARGA / SKELETON BASE
+   -------------------------------------------------------------------------- */
+.panel-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
-.empty-state {
-  background: #ffffff;
-  border: 1px dashed #cbd5e1;
-  border-radius: 16px;
-  padding: 18px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 13px;
+.panel-loading::before {
+  content: "";
+  width: 28px;
+  height: 28px;
+  border: 3px solid #e2e8f0;
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  margin-bottom: 12px;
+  animation: spinLogitrack 0.8s linear infinite;
+}
+
+@keyframes spinLogitrack {
+  to { transform: rotate(360deg); }
 }
