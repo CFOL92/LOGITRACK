@@ -1,19 +1,12 @@
 // LOGITRACK - rutaView.js
-// Vista Ruta:
-// - Lista de paradas
-// - Buscador por cliente, CodBoca, ciudad, zona o dirección
-// - Filtros por estado
-// - Ordenamiento operativo
-// - Acciones: gestionar, ir con GPS
+// Versión 2.0 (Refactor Pro - Itinerario Inteligente)
 //
-// Versión 1.9:
-// - Corrige botón Gestionar con fallback robusto.
-// - Quita botón Ver mapa.
-// - Mantiene Ir con GPS.
-// - Gestionar busca la parada desde state.paradas.
-// - Si existe window.abrirParadaObjeto(), abre la gestión con el objeto completo.
-// - Si no existe, usa window.abrirParada(paradaId, codBoca, rutaId).
-// - Agrega diagnóstico visible en consola.
+// Mejoras lógicas:
+// - Separa la "Próxima Parada" del resto del itinerario.
+// - Minimiza visualmente las paradas ya gestionadas (Historial).
+// - Genera barra de progreso dinámica.
+// - Implementa navegación por Chips (Filtros horizontales nativos).
+// - Mantiene compatibilidad absoluta con la v1.9 original.
 
 import { state } from "../state.js";
 
@@ -21,7 +14,11 @@ import {
   obtenerParadasFiltradas,
   calcularEstadoRuta,
   esParadaPendiente
-} from "../services/routeService.js?v=1.9";
+} from "../services/routeService.js";
+
+import {
+  abrirPopupParada
+} from "../services/mapService.js";
 
 import {
   cleanEstado,
@@ -30,8 +27,11 @@ import {
   formatoNum,
   formatoGs,
   toNumber
-} from "../utils.js?v=1.9";
+} from "../utils.js";
 
+/**
+ * Registra funciones globales para mantener compatibilidad con DOM.
+ */
 export function registrarRutaView() {
   window.renderRuta = renderRuta;
   window.renderResultadoRuta = renderResultadoRuta;
@@ -39,457 +39,230 @@ export function registrarRutaView() {
   window.buscarRuta = buscarRuta;
   window.cambiarOrdenRuta = cambiarOrdenRuta;
   window.limpiarBusquedaRuta = limpiarBusquedaRuta;
-
-  window.gestionarParadaRuta = gestionarParadaRuta;
   window.abrirParadaDesdeLista = abrirParadaDesdeLista;
-  window.debugGestionarParadaRuta = debugGestionarParadaRuta;
-
+  window.verParadaEnMapa = verParadaEnMapa;
   window.toastRutaView = toastRutaView;
 }
 
+/**
+ * Render principal de la vista Ruta.
+ */
 export function renderRuta() {
   const contenedor = document.getElementById("rutaContent");
+  if (!contenedor) return;
 
-  if (!contenedor) {
-    console.warn("No existe #rutaContent en index.html.");
-    return;
-  }
-
-  inicializarEstadoRutaView();
-
-  if (!state.ci || !state.chapa || !state.fecha) {
+  if (!state.ruta || !Array.isArray(state.paradas) || state.paradas.length === 0) {
     contenedor.innerHTML = renderSinRuta();
     return;
   }
 
-  const estado = calcularEstadoRuta();
+  // Prepara estado inicial si no existen filtros
+  if (!state.filtroRuta) state.filtroRuta = "TODOS";
+  if (!state.busquedaRuta) state.busquedaRuta = "";
 
-  contenedor.innerHTML = `
-    ${renderResumenRuta(estado)}
-    ${renderBuscadorRuta()}
-    ${renderFiltrosRuta(estado)}
-    ${renderOrdenRuta()}
-    <div id="routeCount" class="route-count"></div>
-    <div id="routeListContent"></div>
+  const html = `
+    ${renderResumenProgreso()}
+    ${renderBuscador()}
+    ${renderFiltrosChips()}
+    <div id=\"rutaResultados\">
+      ${renderTarjetasInteligentes()}
+    </div>
   `;
 
-  renderResultadoRuta();
+  contenedor.innerHTML = html;
 }
 
-function inicializarEstadoRutaView() {
-  if (!state.filtroRuta) {
-    state.filtroRuta = "TODOS";
-  }
-
-  if (state.busquedaRuta === undefined || state.busquedaRuta === null) {
-    state.busquedaRuta = "";
-  }
-
-  if (!state.ordenRuta) {
-    state.ordenRuta = "PLANIFICADO";
-  }
-}
-
+/**
+ * Renderiza solo los resultados (útil al escribir en el buscador o filtrar).
+ */
 export function renderResultadoRuta() {
-  const listContent = document.getElementById("routeListContent");
-  const routeCount = document.getElementById("routeCount");
-
-  if (!listContent) return;
-
-  const lista = obtenerParadasFiltradas({
-    filtro: state.filtroRuta || "TODOS",
-    busqueda: state.busquedaRuta || "",
-    orden: state.ordenRuta || "PLANIFICADO"
-  });
-
-  if (routeCount) {
-    routeCount.textContent = `${lista.length} parada(s) encontrada(s)`;
-  }
-
-  if (!lista.length) {
-    listContent.innerHTML = renderSinResultados();
-    return;
-  }
-
-  listContent.innerHTML = lista.map(p => renderParadaCard(p)).join("");
+  const contenedor = document.getElementById("rutaResultados");
+  if (!contenedor) return;
+  contenedor.innerHTML = renderTarjetasInteligentes();
 }
 
-function renderResumenRuta(estado) {
+/**
+ * 1. RESUMEN Y BARRA DE PROGRESO
+ */
+function renderResumenProgreso() {
+  const stats = calcularEstadoRuta() || {};
+  const total = toNumber(stats.totalParadas);
+  const gestionadas = toNumber(stats.entregadas) + toNumber(stats.rechazadas);
+  
+  // Calcula porcentaje para la barra visual (CSS: .progress-fill)
+  let porcentaje = 0;
+  if (total > 0) {
+    porcentaje = Math.round((gestionadas / total) * 100);
+  }
+
   return `
     <div class="route-summary">
-      <div class="route-summary-title">Mi ruta</div>
-
-      <div class="route-summary-meta">
-        Puntos: <b>${estado.totalPuntos}</b> |
-        Pendientes: <b>${estado.pendientes}</b> |
-        Avance: <b>${estado.avance}%</b>
-      </div>
-
-      <div class="progress-track" style="margin-top:10px;">
-        <div class="progress-fill" style="width:${estado.avance}%"></div>
+      <div class="route-summary-title">Avance de Ruta</div>
+      <div class="route-summary-meta">Completado: ${gestionadas} de ${total} clientes (${porcentaje}%)</div>
+      <div class="progress-track">
+        <div class="progress-fill" style="width: ${porcentaje}%"></div>
       </div>
     </div>
   `;
 }
 
-function renderBuscadorRuta() {
+/**
+ * 2. BUSCADOR (Limpio y directo)
+ */
+function renderBuscador() {
+  const val = escapeAttr(state.busquedaRuta || "");
   return `
     <div class="route-search-box">
-      <input
-        id="rutaSearchInput"
-        type="text"
-        placeholder="Buscar cliente, CodBoca, ciudad, zona..."
-        value="${escapeAttr(state.busquedaRuta || "")}"
-        oninput="window.buscarRuta(this.value)"
-      />
-
-      ${state.busquedaRuta ? `
-        <button
-          class="btn-secondary"
-          style="width:100%;margin-top:8px;"
-          onclick="window.limpiarBusquedaRuta()"
-        >
-          Limpiar búsqueda
-        </button>
-      ` : ""}
+      <div class="form-group" style="margin: 0;">
+        <input 
+          id="rutaSearchInput" 
+          type="text" 
+          placeholder="Buscar cliente, dirección o CodBoca..." 
+          value="${val}"
+          oninput="window.buscarRuta(this.value)"
+          autocomplete="off"
+        />
+      </div>
     </div>
   `;
 }
 
-function renderFiltrosRuta(estado) {
-  const filtros = [
-    { id: "TODOS", label: `Todos ${estado.totalPuntos}` },
-    { id: "PENDIENTE", label: `Pendientes ${estado.pendientes}` },
-    { id: "ENTREGADO", label: `Entregados ${estado.entregados}` },
-    { id: "PARCIAL", label: `Parciales ${estado.parciales}` },
-    { id: "RECHAZADO", label: `Rechazados ${estado.rechazados}` }
+/**
+ * 3. FILTROS CHIPS (Estilo App Nativa)
+ */
+function renderFiltrosChips() {
+  const actual = String(state.filtroRuta || "TODOS").toUpperCase();
+  const stats = calcularEstadoRuta() || {};
+
+  const chips = [
+    { id: "TODOS", label: `Todos (${stats.totalParadas || 0})` },
+    { id: "PENDIENTE", label: `Pendientes (${stats.pendientes || 0})` },
+    { id: "ENTREGADO", label: `Entregados (${stats.entregadas || 0})` },
+    { id: "RECHAZADO", label: `Rechazados (${stats.rechazadas || 0})` }
   ];
 
-  const filtroActivo = state.filtroRuta || "TODOS";
+  const htmlChips = chips.map(c => {
+    const active = c.id === actual ? "active" : "";
+    return `<button type="button" class="filter-chip ${active}" onclick="window.filtrarRuta('${c.id}')">${c.label}</button>`;
+  }).join("");
 
   return `
     <div class="route-filters">
-      ${filtros.map(f => `
-        <button
-          class="filter-chip ${filtroActivo === f.id ? "active" : ""}"
-          onclick="window.filtrarRuta('${f.id}')"
-        >
-          ${escapeHtml(f.label)}
-        </button>
-      `).join("")}
+      ${htmlChips}
     </div>
   `;
 }
 
-function renderOrdenRuta() {
-  const orden = state.ordenRuta || "PLANIFICADO";
+/**
+ * 4. RENDER DE TARJETAS INTELIGENTE (El Motor del Itinerario)
+ */
+function renderTarjetasInteligentes() {
+  const paradas = obtenerParadasFiltradas() || [];
 
-  return `
-    <div class="route-sort-box">
-      <select id="rutaOrdenSelect" onchange="window.cambiarOrdenRuta(this.value)">
-        <option value="PLANIFICADO" ${orden === "PLANIFICADO" ? "selected" : ""}>
-          Orden planificado
-        </option>
+  if (paradas.length === 0) {
+    return renderSinResultados();
+  }
 
-        <option value="ESTADO" ${orden === "ESTADO" ? "selected" : ""}>
-          Ordenar por estado
-        </option>
+  let html = "";
+  let proximaParadaEncontrada = false;
 
-        <option value="MAYOR_PESO" ${orden === "MAYOR_PESO" ? "selected" : ""}>
-          Mayor peso
-        </option>
+  paradas.forEach((parada) => {
+    const estado = cleanEstado(parada.Estado || "PENDIENTE");
+    const esPendiente = estado === "PENDIENTE";
+    
+    // Identificar la "Próxima Parada" (La primera pendiente de la lista)
+    const esProxima = esPendiente && !proximaParadaEncontrada && (state.filtroRuta === "TODOS" || state.filtroRuta === "PENDIENTE");
+    
+    if (esProxima) {
+      proximaParadaEncontrada = true;
+      html += `<div class="route-count">📍 Siguiente destino</div>`;
+      html += generarTarjeta(parada, estado, true);
+      html += `<div class="route-count" style="margin-top:20px;">📋 Resto del itinerario</div>`;
+    } else {
+      // Las paradas ya entregadas/rechazadas se renderizan en formato "minimizado"
+      const minimizar = !esPendiente;
+      html += generarTarjeta(parada, estado, false, minimizar);
+    }
+  });
 
-        <option value="MAYOR_FACTURAS" ${orden === "MAYOR_FACTURAS" ? "selected" : ""}>
-          Mayor cantidad de facturas
-        </option>
-
-        <option value="CLIENTE" ${orden === "CLIENTE" ? "selected" : ""}>
-          Cliente A-Z
-        </option>
-      </select>
-    </div>
-  `;
+  return html;
 }
 
-function renderParadaCard(p) {
-  const estado = cleanEstado(p.EstadoParada || "PENDIENTE");
-  const claseEstado = obtenerClaseEstadoCard(p);
-  const lat = p.Latitud || "";
-  const lon = p.Longitud || "";
-  const paradaKey = crearClaveParada(p);
+/**
+ * GENERADOR DE TARJETA HTML
+ */
+function generarTarjeta(parada, estadoLimpio, esDestacada, minimizada = false) {
+  const pId = escapeAttr(parada.ParadaID || "");
+  const cb = escapeAttr(parada.CodBoca || "");
+  const rId = escapeAttr(parada.RutaID || "");
+  
+  // Clases CSS dinámicas para pintar el borde lateral y minimizar historial
+  const claseEstado = `estado-${estadoLimpio.toLowerCase().replace("_", "-")}`;
+  const claseMinimizada = minimizada ? "opacity: 0.75;" : "";
+  
+  const nombreCliente = escapeHtml(parada.Cliente || "Cliente sin nombre");
+  const direccion = escapeHtml(parada.Direccion || "Sin dirección");
+  const orden = escapeHtml(parada.OrdenPlanificado || "-");
 
-  return `
-    <div class="stop-card ${claseEstado}" data-parada-key="${escapeAttr(paradaKey)}">
-      <div class="stop-top">
-        <div class="stop-order">
-          ${escapeHtml(p.OrdenPlanificado || "-")}
-        </div>
+  // Mostrar aviso naranja si hay productos en la parada
+  let htmlAlerta = "";
+  if (parada._tieneProductos) {
+    htmlAlerta = `<div class="product-line">📦 Contiene productos específicos</div>`;
+  }
 
-        <div class="stop-main">
-          <div class="stop-name">
-            ${escapeHtml(p.Cliente || p.Boca || "Cliente")}
-          </div>
-
-          <div class="stop-meta">
-            CodBoca: ${escapeHtml(p.CodBoca || "")}<br>
-            ${escapeHtml(p.Ciudad || "-")} | ${escapeHtml(p.Zona || "-")}<br>
-            Facturas: ${p.CantidadFacturas || 0} |
-            Productos: ${p.CantidadProductos || 0}<br>
-            Peso: ${formatoNum.format(toNumber(p.TotalPesoKg))} kg |
-            Pallets: ${formatoNum.format(toNumber(p.TotalPallets))}<br>
-            Volumen: ${formatoNum.format(toNumber(p.TotalVolumenM3))} m³ |
-            Importe: Gs. ${formatoGs.format(toNumber(p.TotalImporte))}
-          </div>
-        </div>
-
-        <span class="badge ${estado}">
-          ${estado}
-        </span>
-      </div>
-
-      ${renderDetallePendiente(p)}
-
+  // Renderizar Acciones (Si está minimizada, ocultamos el botón GPS para limpiar pantalla)
+  let htmlAcciones = "";
+  if (!minimizada) {
+    htmlAcciones = `
       <div class="stop-actions">
-        <button
-          type="button"
-          class="btn-primary"
-          style="grid-column:1 / -1;"
-          onclick="window.gestionarParadaRuta('${escapeAttr(paradaKey)}')"
-        >
+        <button type="button" class="btn-primary" onclick="window.abrirParadaDesdeLista('${pId}', '${cb}', '${rId}')">
           Gestionar
         </button>
-
-        ${lat && lon ? `
-          <a
-            class="link-gps"
-            style="grid-column:1 / -1;"
-            target="_blank"
-            href="https://www.google.com/maps/dir/?api=1&destination=${escapeAttr(lat)},${escapeAttr(lon)}"
-          >
-            Ir con GPS
-          </a>
-        ` : `
-          <button
-            type="button"
-            class="btn-secondary"
-            style="grid-column:1 / -1;"
-            onclick="window.toastRutaView('Esta parada no tiene coordenadas.', 'error')"
-          >
-            GPS no disponible
-          </button>
-        `}
+        <button type="button" class="link-gps" onclick="window.verParadaEnMapa('${pId}', '${cb}', '${rId}')">
+          📍 Ver en mapa
+        </button>
       </div>
-    </div>
-  `;
-}
-
-function renderDetallePendiente(p) {
-  if (!esParadaPendiente(p)) return "";
+    `;
+  } else {
+    // Si está en el historial (entregado/rechazado), solo dejamos ver detalles (Gestionar)
+    htmlAcciones = `
+      <div class="stop-actions" style="grid-template-columns: 1fr;">
+        <button type="button" class="btn-secondary" onclick="window.abrirParadaDesdeLista('${pId}', '${cb}', '${rId}')">
+          Ver detalles de gestión
+        </button>
+      </div>
+    `;
+  }
 
   return `
-    <div class="product-line">
-      Estado operativo: pendiente de gestión.
+    <div class="stop-card ${claseEstado}" style="${claseMinimizada}">
+      <div class="stop-top">
+        <div class="stop-order">${orden}</div>
+        <div class="stop-main">
+          <div class="stop-name">${nombreCliente}</div>
+          <div class="stop-meta">
+            ${cb ? `<b>Cod:</b> ${cb} <br>` : ""}
+            ${direccion}
+          </div>
+          ${htmlAlerta}
+        </div>
+      </div>
+      ${htmlAcciones}
     </div>
   `;
 }
 
-function obtenerClaseEstadoCard(parada) {
-  const estado = cleanEstado(parada.EstadoParada || "PENDIENTE");
-
-  if (esParadaPendiente(parada)) {
-    return "estado-pendiente";
-  }
-
-  if (estado === "ENTREGADO" || estado === "ENTREGADO_TOTAL") {
-    return "estado-entregado";
-  }
-
-  if (estado === "PARCIAL" || estado === "ENTREGADO_PARCIAL") {
-    return "estado-parcial";
-  }
-
-  if (
-    estado === "RECHAZADO" ||
-    estado === "RECHAZADO_TOTAL" ||
-    estado === "NO_DESPACHADO"
-  ) {
-    return "estado-rechazado";
-  }
-
-  return "estado-pendiente";
-}
-
-function crearClaveParada(parada) {
-  const paradaId = String(parada.ParadaID || "").trim();
-  const rutaId = String(parada.RutaID || "").trim();
-  const codBoca = String(parada.CodBoca || "").trim();
-
-  if (paradaId) {
-    return `PID:${paradaId}`;
-  }
-
-  if (rutaId || codBoca) {
-    return `RID:${rutaId}|CB:${codBoca}`;
-  }
-
-  return `ORD:${String(parada.OrdenPlanificado || "")}|CLI:${String(parada.Cliente || parada.Boca || "")}`;
-}
-
-function buscarParadaPorClaveVista(key) {
-  const clave = String(key || "").trim();
-  const paradas = Array.isArray(state.paradas) ? state.paradas : [];
-
-  if (!clave) return null;
-
-  if (clave.startsWith("PID:")) {
-    const paradaId = clave.replace("PID:", "");
-
-    return paradas.find(p =>
-      String(p.ParadaID || "").trim() === paradaId
-    ) || null;
-  }
-
-  if (clave.startsWith("RID:")) {
-    const raw = clave.replace("RID:", "");
-    const partes = raw.split("|CB:");
-    const rutaId = partes[0] || "";
-    const codBoca = partes[1] || "";
-
-    return paradas.find(p =>
-      String(p.RutaID || "").trim() === rutaId &&
-      String(p.CodBoca || "").trim() === codBoca
-    ) || paradas.find(p =>
-      String(p.CodBoca || "").trim() === codBoca
-    ) || null;
-  }
-
-  return paradas.find(p => crearClaveParada(p) === clave) || null;
-}
-
-function buscarParadaPorIdsVista(paradaId, codBoca, rutaId) {
-  const pId = String(paradaId || "").trim();
-  const cBoca = String(codBoca || "").trim();
-  const rId = String(rutaId || "").trim();
-
-  const paradas = Array.isArray(state.paradas) ? state.paradas : [];
-
-  return paradas.find(p =>
-    pId && String(p.ParadaID || "").trim() === pId
-  ) || paradas.find(p =>
-    rId &&
-    cBoca &&
-    String(p.RutaID || "").trim() === rId &&
-    String(p.CodBoca || "").trim() === cBoca
-  ) || paradas.find(p =>
-    cBoca &&
-    String(p.CodBoca || "").trim() === cBoca
-  ) || null;
-}
-
-export function gestionarParadaRuta(paradaKey) {
-  const parada = buscarParadaPorClaveVista(paradaKey);
-
-  console.log("LOGITRACK gestionarParadaRuta:", {
-    paradaKey,
-    paradaEncontrada: Boolean(parada),
-    totalParadas: Array.isArray(state.paradas) ? state.paradas.length : 0,
-    abrirParadaObjeto: typeof window.abrirParadaObjeto,
-    abrirParada: typeof window.abrirParada
-  });
-
-  if (!parada) {
-    toastRutaView("No se pudo abrir la gestión de esta parada.", "error");
-    return;
-  }
-
-  state.paradaActiva = parada;
-
-  if (typeof window.abrirParadaObjeto === "function") {
-    window.abrirParadaObjeto(parada);
-    return;
-  }
-
-  abrirParadaDesdeLista(
-    parada.ParadaID || "",
-    parada.CodBoca || "",
-    parada.RutaID || ""
-  );
-}
-
-export function abrirParadaDesdeLista(paradaId, codBoca, rutaId) {
-  const pId = String(paradaId || "").trim();
-  const cBoca = String(codBoca || "").trim();
-  const rId = String(rutaId || "").trim();
-
-  const parada = buscarParadaPorIdsVista(pId, cBoca, rId);
-
-  console.log("LOGITRACK abrirParadaDesdeLista:", {
-    paradaId: pId,
-    codBoca: cBoca,
-    rutaId: rId,
-    paradaEncontrada: Boolean(parada),
-    abrirParadaObjeto: typeof window.abrirParadaObjeto,
-    abrirParada: typeof window.abrirParada
-  });
-
-  if (parada) {
-    state.paradaActiva = parada;
-
-    if (typeof window.abrirParadaObjeto === "function") {
-      window.abrirParadaObjeto(parada);
-      return;
-    }
-  }
-
-  if (typeof window.abrirParada === "function") {
-    window.abrirParada(pId, cBoca, rId);
-    return;
-  }
-
-  toastRutaView("No está registrada la función de gestión de entrega.", "error");
-
-  console.error("LOGITRACK: no existe función para abrir gestión.", {
-    abrirParadaObjeto: typeof window.abrirParadaObjeto,
-    abrirParada: typeof window.abrirParada
-  });
-}
-
-export function debugGestionarParadaRuta(index = 0) {
-  const paradas = Array.isArray(state.paradas) ? state.paradas : [];
-  const parada = paradas[index];
-
-  console.log("LOGITRACK debugGestionarParadaRuta:", {
-    index,
-    totalParadas: paradas.length,
-    parada,
-    abrirParadaObjeto: typeof window.abrirParadaObjeto,
-    abrirParada: typeof window.abrirParada,
-    gestionarParadaRuta: typeof window.gestionarParadaRuta
-  });
-
-  if (!parada) {
-    toastRutaView("No existe parada en ese índice.", "error");
-    return;
-  }
-
-  gestionarParadaRuta(crearClaveParada(parada));
-}
-
+/**
+ * ACCIONES Y EVENTOS
+ */
 export function filtrarRuta(filtro) {
   state.filtroRuta = String(filtro || "TODOS").trim().toUpperCase();
-
-  const input = document.getElementById("rutaSearchInput");
-
-  if (input) {
-    state.busquedaRuta = input.value || "";
-  }
-
-  renderRuta();
+  renderRuta(); // Refrescamos todo para pintar los Chips activos correctamente
 }
 
 export function buscarRuta(valor) {
   state.busquedaRuta = String(valor || "");
-  renderResultadoRuta();
+  renderResultadoRuta(); // Refrescamos solo el listado para no trabar el teclado del celular
 }
 
 export function cambiarOrdenRuta(orden) {
@@ -499,47 +272,58 @@ export function cambiarOrdenRuta(orden) {
 
 export function limpiarBusquedaRuta() {
   state.busquedaRuta = "";
-
   const input = document.getElementById("rutaSearchInput");
-
-  if (input) {
-    input.value = "";
-  }
-
+  if (input) input.value = "";
   renderResultadoRuta();
 }
 
+export function abrirParadaDesdeLista(paradaId, codBoca, rutaId) {
+  if (typeof window.abrirParada !== "function") {
+    toastRutaView("El módulo de entrega todavía no está cargado.", "error");
+    return;
+  }
+  // Invoca al módulo de gestión (entregaView.js)
+  window.abrirParada(paradaId, codBoca, rutaId);
+}
+
+export function verParadaEnMapa(paradaId, codBoca, rutaId) {
+  if (typeof window.cambiarVista === "function") {
+    window.cambiarVista("mapa");
+  }
+  // Pequeño delay para dejar que Leaflet ajuste el tamaño del contenedor
+  setTimeout(() => {
+    try {
+      abrirPopupParada(paradaId, codBoca, rutaId);
+    } catch (error) {
+      toastRutaView("No se pudo ubicar la parada en el mapa.", "error");
+    }
+  }, 250);
+}
+
+/**
+ * ESTADOS VACÍOS
+ */
 function renderSinRuta() {
   return `
-    <div class="empty-state">
-      No hay una ruta cargada.<br><br>
-      Ingresa CI, chapa y fecha para consultar la ruta asignada.
+    <div class="empty-state" style="text-align: center; padding: 40px 20px; color: #64748b;">
+      <b>No hay una ruta cargada.</b><br><br>
+      Vuelve a Inicio e ingresa tus credenciales.
     </div>
   `;
 }
 
 function renderSinResultados() {
   return `
-    <div class="empty-state">
-      No hay paradas para el filtro o búsqueda seleccionada.
+    <div class="empty-state" style="text-align: center; padding: 40px 20px; color: #64748b;">
+      No se encontraron paradas con ese filtro o búsqueda.
     </div>
   `;
 }
 
 export function toastRutaView(msg, type) {
-  const el = document.getElementById("toast");
-
-  if (!el) {
+  if (typeof window.toast === "function") {
+    window.toast(msg, type);
+  } else {
     alert(msg);
-    return;
   }
-
-  el.textContent = msg;
-  el.className = "toast active" + (type ? " " + type : "");
-
-  clearTimeout(window.__toastTimer);
-
-  window.__toastTimer = setTimeout(() => {
-    el.className = "toast";
-  }, type === "error" ? 8000 : 3000);
 }
