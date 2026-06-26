@@ -1,12 +1,12 @@
 // LOGITRACK - main.js
 // Punto central de arranque de la aplicación modular.
 //
-// Versión 1.8:
-// - Fuerza recarga de rutaView.js y entregaView.js con query ?v=1.8.
+// Versión 1.9:
+// - Fuerza recarga de módulos principales con query ?v=1.9.
+// - Corrige carga de rutaView.js v1.9.
+// - Corrige carga de entregaView.js v1.9.
+// - Permite que Gestionar use window.abrirParadaObjeto.
 // - Mantiene state/config/utils base sin query para evitar duplicar estado interno.
-// - Corrige botón Gestionar en módulo Ruta.
-// - Quita botón Ver mapa de las tarjetas de ruta.
-// - Mantiene Ir con GPS.
 // - Mantiene control visual del mapa solo en vista Mapa.
 // - Evita abrir Mapa si no hay ruta cargada.
 // - Evita doble redibujado de Leaflet.
@@ -18,73 +18,73 @@ import { state } from "./state.js";
 
 import { registrarUtils } from "./utils.js";
 
-import { registrarApiService, verificarConexionAPI } from "./api.js?v=1.7";
+import { registrarApiService, verificarConexionAPI } from "./api.js?v=1.9";
 
 import {
   initMap,
   registrarMapService,
   dibujarMapa,
   refrescarTamanioMapa
-} from "./services/mapService.js?v=1.7";
+} from "./services/mapService.js?v=1.9";
 
 import {
   registrarGpsService
-} from "./services/gpsService.js?v=1.7";
+} from "./services/gpsService.js?v=1.9";
 
 import {
   registrarRouteService
-} from "./services/routeService.js?v=1.7";
+} from "./services/routeService.js?v=1.9";
 
 import {
   registrarLoginView,
   inicializarLogin,
   cargarRutaChofer,
   actualizarPanelChofer
-} from "./views/loginView.js?v=1.7";
+} from "./views/loginView.js?v=1.9";
 
 import {
   registrarInicioView,
   renderInicio,
   actualizarAppHeader
-} from "./views/inicioView.js?v=1.7";
+} from "./views/inicioView.js?v=1.9";
 
 import {
   registrarRutaView,
   renderRuta
-} from "./views/rutaView.js?v=1.8";
+} from "./views/rutaView.js?v=1.9";
 
 import {
   registrarMapaView,
   activarVistaMapa,
   ocultarTopPanel,
   actualizarPanelMapa
-} from "./views/mapaView.js?v=1.7";
+} from "./views/mapaView.js?v=1.9";
 
 import {
   registrarCierreView,
   renderCierre
-} from "./views/cierreView.js?v=1.7";
+} from "./views/cierreView.js?v=1.9";
 
 import {
   registrarEntregaView,
   abrirParada,
   verProductos,
   cerrarPanel
-} from "./views/entregaView.js?v=1.8";
+} from "./views/entregaView.js?v=1.9";
 
 import {
   registrarFacturaActions
-} from "./actions/facturaActions.js?v=1.7";
+} from "./actions/facturaActions.js?v=1.9";
 
 import {
   registrarProductoActions
-} from "./actions/productoActions.js?v=1.7";
+} from "./actions/productoActions.js?v=1.9";
 
 import {
   registrarRutaActions
-} from "./actions/rutaActions.js?v=1.7";
+} from "./actions/rutaActions.js?v=1.9";
 
-const FRONTEND_BUILD = "v1.8";
+const FRONTEND_BUILD = "v1.9";
 
 /**
  * Arranque principal.
@@ -576,6 +576,9 @@ function diagnosticoLogitrack() {
     facturaActiva: state.facturaActiva || null,
     apiUrl: window.LOGITRACK_SHEET_API || null,
     lastApiUrl: window.LOGITRACK_LAST_API_URL || null,
+    abrirParada: typeof window.abrirParada,
+    abrirParadaObjeto: typeof window.abrirParadaObjeto,
+    gestionarParadaRuta: typeof window.gestionarParadaRuta,
     mapaDisplay: mapEl ? mapEl.style.display || getComputedStyle(mapEl).display : "SIN_MAPA"
   };
 
