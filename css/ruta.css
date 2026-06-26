@@ -1,13 +1,67 @@
-/* LOGITRACK - ruta.css */
+/* ==========================================================================
+   LOGITRACK PRO - RUTA MODULE (Listado y Tablero Operativo)
+   Versión: 1.9 (Refactor Visual Profesional)
+   ========================================================================== */
 
-/* --- FILTROS DE RUTA --- */
+/* 1. CONTENEDORES GLOBALES DE RUTA
+   -------------------------------------------------------------------------- */
+.route-summary, 
+.stop-card, 
+.route-search-box, 
+.route-sort-box {
+  background-color: var(--bg-card);
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  padding: 18px 16px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-fast);
+}
 
+/* 2. RESUMEN Y BARRA DE PROGRESO
+   -------------------------------------------------------------------------- */
+.route-summary-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--surface-header);
+  margin-bottom: 6px;
+  letter-spacing: -0.01em;
+}
+
+.route-summary-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  font-weight: 500;
+}
+
+.progress-track {
+  height: 8px;
+  background-color: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.progress-fill {
+  height: 100%;
+  /* Gradiente corporativo para el progreso */
+  background: linear-gradient(90deg, var(--brand-primary), #38bdf8);
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 3. FILTROS DESLIZABLES (CHIPS NAV)
+   -------------------------------------------------------------------------- */
 .route-filters {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   overflow-x: auto;
-  padding-bottom: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 4px; /* Espacio sutil por si el SO fuerza la barra */
+  
+  /* Ocultar barra de scroll nativa para un look app móvil */
+  -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
@@ -16,251 +70,137 @@
 }
 
 .filter-chip {
+  background-color: #f8fafc;
+  color: var(--brand-neutral);
   border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #334155;
   border-radius: 999px;
-  padding: 8px 10px;
-  font-size: 10px;
-  font-weight: 900;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
-  min-width: max-content;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  user-select: none;
 }
 
+.filter-chip:active {
+  transform: scale(0.96);
+}
+
+/* Estado activo: Pasa a ser un botón oscuro de alto contraste */
 .filter-chip.active {
-  background: var(--primary);
-  border-color: var(--primary);
+  background-color: var(--surface-header);
   color: #ffffff;
+  border-color: var(--surface-header);
+  box-shadow: var(--shadow-sm);
 }
 
-/* --- TARJETAS DE PARADA / CLIENTE --- */
-
+/* 4. TARJETA DE PARADA (STOP CARD)
+   -------------------------------------------------------------------------- */
 .stop-card {
-  background: #ffffff;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 13px;
-  margin-bottom: 10px;
-  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
+  position: relative;
+  overflow: hidden;
+  border-left-width: 5px; /* Cinta de color dinámico a la izquierda */
+  padding: 16px;
 }
+
+/* Clases dinámicas inyectadas desde rutaView.js -> obtenerClaseEstadoCard() */
+.stop-card.estado-pendiente { border-left-color: var(--brand-primary); }
+.stop-card.estado-entregado { border-left-color: var(--status-entregado-text); }
+.stop-card.estado-parcial { border-left-color: var(--status-parcial-text); }
+.stop-card.estado-rechazado { border-left-color: var(--status-rechazado-text); }
 
 .stop-top {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   align-items: flex-start;
 }
 
+/* Círculo de Orden Planificado */
 .stop-order {
-  min-width: 34px;
-  height: 34px;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: var(--brand-neutral-hover);
   border-radius: 12px;
-  background: #e0f2fe;
-  color: #0369a1;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 950;
-  font-size: 13px;
+  font-weight: 700;
+  font-size: 14px;
 }
 
 .stop-main {
   flex: 1;
-  min-width: 0;
+  min-width: 0; /* Previene desbordamiento de textos largos */
 }
 
 .stop-name {
-  font-size: 13px;
-  font-weight: 950;
-  color: #0f172a;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--surface-header);
   line-height: 1.25;
+  margin-bottom: 4px;
   text-transform: uppercase;
-  word-break: break-word;
 }
 
 .stop-meta {
-  margin-top: 5px;
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.45;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
+/* 5. AVISOS INTERNOS Y ACCIONES
+   -------------------------------------------------------------------------- */
+.product-line {
+  font-size: 11.5px;
+  font-weight: 600;
+  background-color: #fffbeb;
+  color: #b45309;
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+}
+
+/* Separador visual antes de los botones */
 .stop-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 7px;
-  margin-top: 10px;
-}
-
-.stop-actions button,
-.stop-actions a {
-  width: 100%;
-  text-align: center;
-  text-decoration: none;
-  border-radius: 10px;
-  padding: 11px 10px;
-  font-size: 11px;
-  font-weight: 950;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed #cbd5e1;
 }
 
 .link-gps {
-  background: #dcfce7;
-  color: #166534;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.link-gps:hover {
-  background: #bbf7d0;
-}
-
-/* --- ESTADOS VISUALES DE PARADA --- */
-
-.stop-card.estado-pendiente {
-  border-left: 5px solid var(--primary);
-}
-
-.stop-card.estado-entregado {
-  border-left: 5px solid var(--success);
-}
-
-.stop-card.estado-parcial {
-  border-left: 5px solid var(--warning);
-}
-
-.stop-card.estado-rechazado,
-.stop-card.estado-no-despachado {
-  border-left: 5px solid var(--danger);
-}
-
-/* --- CABECERA / RESUMEN DE RUTA FUTURO FASE 1.2 --- */
-
-.route-summary {
-  background: #ffffff;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 13px;
-  margin-bottom: 10px;
-  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
-}
-
-.route-summary-title {
-  font-size: 13px;
-  font-weight: 950;
-  color: #0f172a;
-  text-transform: uppercase;
-  margin-bottom: 5px;
-}
-
-.route-summary-meta {
-  font-size: 11px;
-  color: var(--muted);
-  line-height: 1.45;
-}
-
-/* --- BUSCADOR FUTURO FASE 1.2 --- */
-
-.route-search-box {
-  background: #ffffff;
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  text-decoration: none;
+  background-color: var(--status-entregado-bg);
+  color: var(--status-entregado-text);
+  border-radius: var(--radius-md);
   padding: 10px;
-  margin-bottom: 10px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+  font-size: 13.5px;
+  font-weight: 600;
+  transition: var(--transition-fast);
 }
 
-.route-search-box input {
-  width: 100%;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 11px 12px;
-  font-size: 13px;
-  outline: none;
+.link-gps:active {
+  transform: scale(0.97);
+  background-color: #bbf7d0;
 }
 
-.route-search-box input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
-}
-
-/* --- ORDENAMIENTO FUTURO FASE 1.2 --- */
-
-.route-sort-box {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.route-sort-box select {
-  width: 100%;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 11px 12px;
-  font-size: 12px;
-  font-weight: 800;
-  color: #334155;
-  background: #ffffff;
-  outline: none;
-}
-
-/* --- CONTADOR DE RESULTADOS --- */
-
+/* Conteo superior de rutas */
 .route-count {
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 900;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
   text-transform: uppercase;
-  margin: 8px 0 10px;
-}
-
-/* --- CIERRE DE RUTA --- */
-
-.cierre-warning {
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #9a3412;
-  border-radius: 14px;
-  padding: 12px;
-  font-size: 12px;
-  line-height: 1.45;
-  margin-bottom: 12px;
-}
-
-.cierre-ok {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
-  border-radius: 14px;
-  padding: 12px;
-  font-size: 12px;
-  line-height: 1.45;
-  margin-bottom: 12px;
-}
-
-/* --- UTILIDADES DE RUTA --- */
-
-.route-muted {
-  color: var(--muted);
-}
-
-.route-strong {
-  color: #0f172a;
-  font-weight: 950;
-}
-
-.route-danger {
-  color: var(--danger);
-  font-weight: 950;
-}
-
-.route-success {
-  color: var(--success);
-  font-weight: 950;
-}
-
-.route-warning {
-  color: var(--warning);
-  font-weight: 950;
+  letter-spacing: 0.05em;
+  margin: 4px 0 12px 6px;
 }
