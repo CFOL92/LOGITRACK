@@ -7,16 +7,11 @@
 // - Gestión intuitiva por producto desde pantalla
 // - Mantener compatibilidad con onclick globales
 //
-// Versión 1.9 - Fase Gestión Robusta:
-// - Registra window.abrirParadaObjeto.
-// - Permite abrir gestión usando el objeto completo de parada.
-// - Si buscarParadaPorClaves falla, busca la parada directamente en state.paradas.
+// Versión 2.0 - Refactor UI Profesional:
+// - Incorpora tablero de Mini Indicadores (KPIs) en la cabecera.
+// - Transforma selección de estado en "Radio Cards" tocables.
 // - Mantiene Cantidad Ruteada / Planificada como dato fijo.
-// - Permite editar solo Cantidad Entregada / Recibida.
-// - Agrega controles + / - para cantidad entregada.
-// - Entregado total: cantidad entregada = cantidad ruteada.
-// - Parcial: cantidad entregada editable y motivo obligatorio.
-// - Rechazado / No despachado: cantidad entregada = 0 y motivo obligatorio.
+// - Permite editar solo Cantidad Entregada / Recibida con controles + / -.
 // - Quita GPS y Refrescar dentro del módulo Gestionar.
 // - Centraliza actualización de producto en productoActions.js.
 // - Mantiene bloqueo por soloLectura, rutaCerrada o HISTORICO_CERRADO.
@@ -206,41 +201,42 @@ export function renderFacturas(facturas) {
 }
 
 function renderHeaderGestionParada(parada) {
-  const estado = cleanEstado(parada.EstadoParada || "PENDIENTE");
+  const nombre = escapeHtml(parada.Cliente || parada.Boca || "Cliente sin nombre");
+  const direccion = escapeHtml(parada.Direccion || "Sin dirección");
+  const ciudad = escapeHtml(parada.Ciudad || "");
+  const codBoca = escapeHtml(parada.CodBoca || "N/A");
+  
+  const facturas = parada.CantidadFacturas || 0;
+  const productos = parada.CantidadProductos || 0;
+  const peso = formatoNum.format(toNumber(parada.TotalPesoKg));
+  const pallets = formatoNum.format(toNumber(parada.TotalPallets || 0));
+  const estadoLimpio = cleanEstado(parada.EstadoParada || "PENDIENTE");
 
   return `
     <div class="gestion-cliente-card">
       <div class="gestion-cliente-top">
-        <div>
-          <div class="gestion-small-label">Detalle de parada</div>
-          <div class="gestion-cliente-nombre">${escapeHtml(parada.Cliente || parada.Boca || "Cliente")}</div>
-          <div class="gestion-cliente-meta">
-            CodBoca: ${escapeHtml(parada.CodBoca || "")}<br>
-            ${escapeHtml(parada.Ciudad || "")} | ${escapeHtml(parada.Zona || "")}
-          </div>
-        </div>
-
-        <span class="badge ${estado}">${estado}</span>
+        <span class="badge ${estadoLimpio}">${estadoLimpio}</span>
+        <span class="gestion-mini-label">Cód: ${codBoca}</span>
       </div>
+
+      <h3 class="gestion-cliente-nombre" style="margin-top: 10px;">${nombre}</h3>
+      <div class="gestion-cliente-meta">📍 ${direccion}${ciudad ? `, ${ciudad}` : ''}</div>
 
       <div class="gestion-kpi-grid">
         <div class="gestion-kpi">
-          <b>${parada.CantidadFacturas || 0}</b>
+          <b>${facturas}</b>
           <span>Facturas</span>
         </div>
-
         <div class="gestion-kpi">
-          <b>${parada.CantidadProductos || 0}</b>
-          <span>Productos</span>
+          <b>${productos}</b>
+          <span>Items</span>
         </div>
-
         <div class="gestion-kpi">
-          <b>${formatoNum.format(toNumber(parada.TotalPesoKg))}</b>
+          <b>${peso}</b>
           <span>Kg</span>
         </div>
-
         <div class="gestion-kpi">
-          <b>${formatoNum.format(toNumber(parada.TotalPallets))}</b>
+          <b>${pallets}</b>
           <span>Pallets</span>
         </div>
       </div>
@@ -252,70 +248,39 @@ function renderEstadoEntrega() {
   const estadoActual = state.estadoEntregaSeleccionado || ESTADO_ENTREGA_DEFAULT;
   const bloqueado = rutaBloqueadaParaGestion();
   const disabledAttr = bloqueado ? "disabled" : "";
+  const cursorStyle = bloqueado ? 'style="opacity: 0.6; cursor: not-allowed;"' : "";
+
+  const opciones = [
+    { id: ESTADOS_PRODUCTO.ENTREGADO_TOTAL, label: "ENTREGADO", desc: "Entrega completa" },
+    { id: ESTADOS_PRODUCTO.ENTREGADO_PARCIAL, label: "PARCIAL", desc: "Entrega con faltantes" },
+    { id: ESTADOS_PRODUCTO.RECHAZADO_TOTAL, label: "RECHAZADO", desc: "Rechazo total" },
+    { id: ESTADOS_PRODUCTO.NO_DESPACHADO, label: "NO DESPACH.", desc: "Falta de stock/tiempo" }
+  ];
+
+  let htmlOpciones = opciones.map(opc => {
+    const isChecked = estadoActual === opc.id ? "checked" : "";
+    const activeClass = estadoActual === opc.id ? "active" : "";
+    const onClick = bloqueado ? "" : `onclick="window.seleccionarEstadoEntrega('${escapeAttr(opc.id)}')"`;
+
+    return `
+      <label class="gestion-estado-option ${activeClass}" ${cursorStyle} ${onClick}>
+        <input type="radio" name="estadoEntrega" value="${opc.id}" ${isChecked} style="display: none;" ${disabledAttr}>
+        <div class="gestion-radio-dot"></div>
+        <div style="flex: 1;">
+          <b style="font-size: 13px; color: var(--surface-header); display: block;">${opc.label}</b>
+          <span style="font-size: 11px; color: var(--text-muted);">${opc.desc}</span>
+        </div>
+      </label>
+    `;
+  }).join("");
 
   return `
     <div class="gestion-estado-card">
-      <div class="gestion-section-title" style="margin-bottom:10px;">Estado de entrega</div>
-
+      <div class="gestion-section-title" style="margin-bottom: 12px;">Estado de la entrega</div>
       <div class="gestion-estado-list">
-        ${renderEstadoOption({
-          estado: ESTADOS_PRODUCTO.ENTREGADO_TOTAL,
-          label: "Entregado",
-          ayuda: "Entrega completa de la factura o producto.",
-          estadoActual,
-          disabledAttr
-        })}
-
-        ${renderEstadoOption({
-          estado: ESTADOS_PRODUCTO.ENTREGADO_PARCIAL,
-          label: "Entrega parcial",
-          ayuda: "Permite cargar cantidad entregada real.",
-          estadoActual,
-          disabledAttr
-        })}
-
-        ${renderEstadoOption({
-          estado: ESTADOS_PRODUCTO.RECHAZADO_TOTAL,
-          label: "Rechazado",
-          ayuda: "Cliente rechaza la mercadería.",
-          estadoActual,
-          disabledAttr
-        })}
-
-        ${renderEstadoOption({
-          estado: ESTADOS_PRODUCTO.NO_DESPACHADO,
-          label: "No despachado",
-          ayuda: "Mercadería no salió o no corresponde entregar.",
-          estadoActual,
-          disabledAttr
-        })}
+        ${htmlOpciones}
       </div>
     </div>
-  `;
-}
-
-function renderEstadoOption({
-  estado,
-  label,
-  ayuda,
-  estadoActual,
-  disabledAttr
-}) {
-  const active = estadoActual === estado ? "active" : "";
-
-  return `
-    <button
-      type="button"
-      class="gestion-estado-option ${active}"
-      ${disabledAttr}
-      onclick="window.seleccionarEstadoEntrega('${escapeAttr(estado)}')"
-    >
-      <span class="gestion-radio-dot"></span>
-      <span>
-        <b>${escapeHtml(label)}</b>
-        <small>${escapeHtml(ayuda)}</small>
-      </span>
-    </button>
   `;
 }
 
@@ -334,14 +299,17 @@ export function seleccionarEstadoEntrega(estado) {
 
   state.estadoEntregaSeleccionado = estadoNormalizado;
 
-  document.querySelectorAll(".gestion-estado-option").forEach(btn => {
-    btn.classList.remove("active");
+  document.querySelectorAll(".gestion-estado-option").forEach(label => {
+    label.classList.remove("active");
+    const input = label.querySelector("input[type='radio']");
+    if (input) input.checked = false;
   });
 
-  document.querySelectorAll(".gestion-estado-option").forEach(btn => {
-    const onclick = btn.getAttribute("onclick") || "";
-    if (onclick.includes(estadoNormalizado)) {
-      btn.classList.add("active");
+  document.querySelectorAll(".gestion-estado-option").forEach(label => {
+    const input = label.querySelector("input[type='radio']");
+    if (input && input.value === estadoNormalizado) {
+      label.classList.add("active");
+      input.checked = true;
     }
   });
 
@@ -564,13 +532,13 @@ function renderProductoCard(p) {
         <span class="badge ${estado}">${estado}</span>
       </div>
 
-      <div class="gestion-producto-resultado">
+      <div class="gestion-producto-resultado" style="${(!p.CantidadEntregada && !p.CantidadRechazada) ? 'display:none;' : ''}">
         Registrado entregado: ${escapeHtml(p.CantidadEntregada || "-")} |
         Rechazado: ${escapeHtml(p.CantidadRechazada || "-")}<br>
         Motivo: ${escapeHtml(p.MotivoProducto || "-")}
       </div>
 
-      <div class="gestion-mini-label">Cantidad entregada real</div>
+      <div class="gestion-mini-label" style="margin-top: 14px;">Cantidad entregada real</div>
 
       <div class="gestion-qty-control">
         <button
@@ -1057,13 +1025,11 @@ function actualizarHeaderPanel(parada) {
   const sideSubtitle = document.getElementById("sideSubtitle");
 
   if (sideTitle) {
-    sideTitle.textContent = parada.Cliente || parada.Boca || "Cliente";
+    sideTitle.textContent = "Gestión de Entrega";
   }
 
   if (sideSubtitle) {
-    sideSubtitle.innerHTML =
-      `CodBoca: ${escapeHtml(parada.CodBoca || "")}<br>` +
-      `Ciudad: ${escapeHtml(parada.Ciudad || "")} | Estado: ${escapeHtml(parada.EstadoParada || "PENDIENTE")}`;
+    sideSubtitle.innerHTML = "Complete los datos a continuación";
   }
 }
 
